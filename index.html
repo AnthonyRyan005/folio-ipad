@@ -3987,6 +3987,520 @@ function openSignature() {
   requestAnimationFrame(redraw);
 }
 
+/* ============================== Finding a page in a picture ============================== */
+// Used by the live camera several times a second, and once for each still photo.
+// 1. Propose page areas three ways: paper brighter than its surroundings, an outline that a flood from the picture's
+//    border can't get through, and colours that differ from the picture's border (usually the desk).
+// 2. Fit four sides to each area's convex outline, two ways: the four longest straight runs, and the four strongest corners.
+//    Straight runs recover a corner hidden under a finger.
+// 3. Snap each side onto the paper's edge: look across the side for the strongest change in brightness in the right
+//    direction, and fit a straight line through those points, ignoring outliers.
+// 4. Keep the candidate whose sides sit on the most edge.
+const DT_CACHE = new Map();
+
+function dtFrame(src, size) {
+  const sw = src.videoWidth || src.naturalWidth || src.width, sh = src.videoHeight || src.naturalHeight || src.height;
+  if (!sw || !sh) return null;
+  const s = size / Math.max(sw, sh), w = Math.max(32, Math.round(sw * s)), h = Math.max(32, Math.round(sh * s)), n = w * h, key = w + 'x' + h;
+  let F = DT_CACHE.get(key);
+  if (!F) {
+    F = { w, h, n, c: scanCanvas(w, h), gray: new Float32Array(n), tmp: new Float32Array(n), gx: new Float32Array(n), gy: new Float32Array(n), mag: new Float32Array(n) };
+    DT_CACHE.set(key, F);
+    if (DT_CACHE.size > 3) DT_CACHE.delete(DT_CACHE.keys().next().value);
+  }
+  const x = F.c.getContext('2d', { willReadFrequently: true });
+  x.imageSmoothingEnabled = true;
+  x.imageSmoothingQuality = 'high';
+  x.drawImage(src, 0, 0, w, h);
+  const d = F.rgb = x.getImageData(0, 0, w, h).data, g = F.gray, t = F.tmp;
+  for (let i = 0, j = 0; i < n; i++, j += 4) g[i] = 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2];
+  for (let pass = 0; pass < 2; pass++) { // light blur to quieten camera noise
+    for (let y = 0; y < h; y++) { const o = y * w; t[o] = g[o]; t[o + w - 1] = g[o + w - 1]; for (let xx = 1; xx < w - 1; xx++) t[o + xx] = (g[o + xx - 1] + 2 * g[o + xx] + g[o + xx + 1]) / 4; }
+    for (let xx = 0; xx < w; xx++) { g[xx] = t[xx]; g[(h - 1) * w + xx] = t[(h - 1) * w + xx]; for (let y = 1; y < h - 1; y++) { const i = y * w + xx; g[i] = (t[i - w] + 2 * t[i] + t[i + w]) / 4; } }
+  }
+  const gx = F.gx, gy = F.gy, mag = F.mag;
+  gx.fill(0); gy.fill(0); mag.fill(0);
+  let max = 0;
+  for (let y = 1; y < h - 1; y++) for (let xx = 1; xx < w - 1; xx++) {
+    const i = y * w + xx;
+    const a = g[i - w + 1] + 2 * g[i + 1] + g[i + w + 1] - g[i - w - 1] - 2 * g[i - 1] - g[i + w - 1];
+    const b = g[i + w - 1] + 2 * g[i + w] + g[i + w + 1] - g[i - w - 1] - 2 * g[i - w] - g[i - w + 1];
+    gx[i] = a / 8; gy[i] = b / 8;
+    const m = Math.hypot(a, b) / 8;
+    mag[i] = m;
+    if (m > max) max = m;
+  }
+  // A strong edge for this picture: the 97th percentile of edge strength.
+  const bins = new Uint32Array(256), k = max > 0 ? 255 / max : 0;
+  for (let i = 0; i < n; i++) bins[(mag[i] * k) | 0]++;
+  let acc = 0, b = 255;
+  for (; b > 0; b--) { acc += bins[b]; if (acc >= n * 0.03) break; }
+  F.gscale = Math.max(4, b / (k || 1));
+  return F;
+}
+
+/* ---------- Proposing page areas ---------- */
+function dtOtsu(vals, n, lo = 0, hi = 255) {
+  const hist = new Float64Array(256), span = (hi - lo) || 1;
+  for (let i = 0; i < n; i++) hist[clamp(((vals[i] - lo) / span * 255) | 0, 0, 255)]++;
+  let total = 0;
+  for (let i = 0; i < 256; i++) total += i * hist[i];
+  let sumB = 0, wB = 0, best = -1, t = 128;
+  for (let i = 0; i < 256; i++) {
+    wB += hist[i];
+    if (!wB) continue;
+    const wF = n - wB;
+    if (!wF) break;
+    sumB += i * hist[i];
+    const mB = sumB / wB, mF = (total - sumB) / wF, between = wB * wF * (mB - mF) * (mB - mF);
+    if (between > best) { best = between; t = i; }
+  }
+  return lo + t / 255 * span;
+}
+function dtBrightMask(F) {
+  const t = dtOtsu(F.gray, F.n), m = new Uint8Array(F.n);
+  for (let i = 0; i < F.n; i++) m[i] = F.gray[i] > t ? 1 : 0;
+  return m;
+}
+function dtOutlineMask(F, gap) {
+  const { w, h, n, mag } = F;
+  const thr = Math.max(3, F.gscale * 0.22);
+  let e = new Uint8Array(n);
+  for (let i = 0; i < n; i++) e[i] = mag[i] > thr ? 1 : 0;
+  if (gap) e = morph(e, w, h, gap, true);
+  const bg = new Uint8Array(n), q = new Int32Array(n);
+  let head = 0, tail = 0;
+  const push = p => { if (!e[p] && !bg[p]) { bg[p] = 1; q[tail++] = p; } };
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+  while (head < tail) {
+    const p = q[head++], px = p % w;
+    if (px > 0) push(p - 1);
+    if (px < w - 1) push(p + 1);
+    if (p >= w) push(p - w);
+    if (p < n - w) push(p + w);
+  }
+  const m = new Uint8Array(n);
+  for (let i = 0; i < n; i++) m[i] = bg[i] ? 0 : 1;
+  return m;
+}
+function dtDeskMask(F) {
+  const { w, h, n, rgb } = F;
+  const ring = [[], [], []];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (x > 2 && y > 2 && x < w - 3 && y < h - 3) continue;
+    const j = (y * w + x) * 4;
+    ring[0].push(rgb[j]); ring[1].push(rgb[j + 1]); ring[2].push(rgb[j + 2]);
+  }
+  const med = ring.map(a => { a.sort((p, q) => p - q); return a[a.length >> 1]; });
+  const dist = F.tmp;
+  let max = 0;
+  for (let i = 0, j = 0; i < n; i++, j += 4) {
+    const v = Math.abs(rgb[j] - med[0]) + Math.abs(rgb[j + 1] - med[1]) + Math.abs(rgb[j + 2] - med[2]);
+    dist[i] = v;
+    if (v > max) max = v;
+  }
+  if (max < 24) return null;
+  const t = Math.max(18, dtOtsu(dist, n, 0, max)), m = new Uint8Array(n);
+  for (let i = 0; i < n; i++) m[i] = dist[i] > t ? 1 : 0;
+  return m;
+}
+
+// Connected areas of a mask, with the pixels on their edge. Keeps the largest few and the one under the middle.
+function dtRegions(m0, F, minArea) {
+  const { w, h, n } = F;
+  const m = morph(morph(m0, w, h, 1, false), w, h, 1, true); // cut thin bridges to nearby objects
+  const lab = new Int32Array(n).fill(-1), queue = new Int32Array(n), regions = [];
+  for (let i = 0; i < n; i++) {
+    if (!m[i] || lab[i] >= 0) continue;
+    const id = regions.length, edge = [];
+    let head = 0, tail = 0, area = 0;
+    queue[tail++] = i;
+    lab[i] = id;
+    while (head < tail) {
+      const p = queue[head++], px = p % w, py = (p - px) / w;
+      area++;
+      let border = px === 0 || py === 0 || px === w - 1 || py === h - 1;
+      if (px > 0) { if (!m[p - 1]) border = true; else if (lab[p - 1] < 0) { lab[p - 1] = id; queue[tail++] = p - 1; } }
+      if (px < w - 1) { if (!m[p + 1]) border = true; else if (lab[p + 1] < 0) { lab[p + 1] = id; queue[tail++] = p + 1; } }
+      if (py > 0) { if (!m[p - w]) border = true; else if (lab[p - w] < 0) { lab[p - w] = id; queue[tail++] = p - w; } }
+      if (py < h - 1) { if (!m[p + w]) border = true; else if (lab[p + w] < 0) { lab[p + w] = id; queue[tail++] = p + w; } }
+      if (border) edge.push(px, py);
+    }
+    regions.push({ id, area, edge, lab });
+  }
+  const big = regions.filter(r => r.area >= minArea * n && r.area <= 0.97 * n).sort((a, b) => b.area - a.area);
+  const keep = big.slice(0, 3);
+  const mid = lab[(h >> 1) * w + (w >> 1)];
+  if (mid >= 0 && !keep.some(r => r.id === mid) && big.some(r => r.id === mid)) keep.push(regions[mid]);
+  return keep;
+}
+// The region's outside edge only: flood in from the picture's border, and keep region pixels the flood touches.
+function dtOuterEdge(reg, F) {
+  const { w, h, n } = F, lab = reg.lab, id = reg.id, out = new Uint8Array(n), q = new Int32Array(n);
+  let head = 0, tail = 0;
+  const push = p => { if (!out[p] && lab[p] !== id) { out[p] = 1; q[tail++] = p; } };
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+  while (head < tail) {
+    const p = q[head++], px = p % w;
+    if (px > 0) push(p - 1);
+    if (px < w - 1) push(p + 1);
+    if (p >= w) push(p - w);
+    if (p < n - w) push(p + w);
+  }
+  const edge = [], map = new Uint8Array(n);
+  for (let i = 0; i < reg.edge.length; i += 2) {
+    const x = reg.edge[i], y = reg.edge[i + 1], p = y * w + x;
+    if (x === 0 || y === 0 || x === w - 1 || y === h - 1 || out[p - 1] || out[p + 1] || out[p - w] || out[p + w]) { edge.push(x, y); map[p] = 1; }
+  }
+  return { edge, map };
+}
+
+/* ---------- Straight sides from the outer edge (Hough transform) ---------- */
+const DT_T = (() => { const n = 120, c = new Float32Array(n), s = new Float32Array(n); for (let i = 0; i < n; i++) { c[i] = Math.cos(i * Math.PI / n); s[i] = Math.sin(i * Math.PI / n); } return { n, c, s }; })();
+function dtHough(edge, F, maxLines = 9) {
+  const { n: T, c, s } = DT_T, diag = Math.ceil(Math.hypot(F.w, F.h)), R = 2 * diag + 1, acc = new Int32Array(T * R);
+  const step = Math.max(1, Math.round(edge.length / 2 / 6000)) * 2;
+  for (let i = 0; i < edge.length; i += step) {
+    const x = edge[i], y = edge[i + 1];
+    for (let t = 0; t < T; t++) acc[t * R + Math.round(x * c[t] + y * s[t]) + diag]++;
+  }
+  const lines = [];
+  for (let k = 0; k < maxLines; k++) {
+    let bi = -1, bv = 0;
+    for (let i = 0; i < acc.length; i++) if (acc[i] > bv) { bv = acc[i]; bi = i; }
+    if (bi < 0 || bv < Math.max(10, lines.length ? lines[0].votes * 0.15 : 0)) break;
+    const t = (bi / R) | 0, r = (bi % R) - diag;
+    lines.push({ votes: bv, ang: t * Math.PI / T, px: r * c[t], py: r * s[t], dx: -s[t], dy: c[t] });
+    for (let dt = -4; dt <= 4; dt++) {
+      const tt = t + dt, wrap = tt < 0 || tt >= T, ti = (tt + T) % T;
+      for (let dr = -7; dr <= 7; dr++) { const rr = (wrap ? -r : r) + dr + diag; if (rr >= 0 && rr < R) acc[ti * R + rr] = 0; }
+    }
+  }
+  return lines;
+}
+// Four lines make a page when they form two pairs of roughly parallel sides meeting at roughly right angles.
+function dtLineQuads(lines, F, minArea, map) {
+  const L = lines.slice(0, 8), out = [];
+  const diff = (a, b) => { const d = Math.abs(a - b) % Math.PI; return Math.min(d, Math.PI - d); };
+  const pairings = [[0, 1, 2, 3], [0, 2, 1, 3], [0, 3, 1, 2]];
+  for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) for (let k = j + 1; k < L.length; k++) for (let l = k + 1; l < L.length; l++) {
+    const f = [L[i], L[j], L[k], L[l]];
+    let best = null;
+    for (const P of pairings) {
+      const a1 = diff(f[P[0]].ang, f[P[1]].ang), a2 = diff(f[P[2]].ang, f[P[3]].ang);
+      if (a1 > 0.6 || a2 > 0.6 || diff(f[P[0]].ang, f[P[2]].ang) < 0.8) continue;
+      if (!best || a1 + a2 < best.e) best = { P, e: a1 + a2 };
+    }
+    if (!best) continue;
+    const [A1, A2, B1, B2] = best.P.map(x => f[x]);
+    const pts = [dtIntersect(A1, B1), dtIntersect(A1, B2), dtIntersect(A2, B2), dtIntersect(A2, B1)];
+    if (pts.some(p => !p)) continue;
+    const q = dtOrder(pts);
+    if (!dtPlausible(q, F, minArea)) continue;
+    out.push({ q, support: dtEdgeSupport(q, F, map), area: Math.abs(dtArea(q)) });
+  }
+  out.sort((a, b) => b.support - a.support || b.area - a.area);
+  return out.slice(0, 3).filter(c => c.support > 0.45).map(c => c.q);
+}
+// How much of a shape's outline lies on the region's outer edge (or on the picture's border).
+function dtEdgeSupport(q, F, map) {
+  const { w, h } = F;
+  let hit = 0, all = 0;
+  for (let i = 0; i < 4; i++) {
+    const A = q[i], B = q[(i + 1) % 4];
+    for (let k = 0; k < 24; k++) {
+      const t = 0.05 + 0.9 * (k + 0.5) / 24, x = Math.round(A[0] + (B[0] - A[0]) * t), y = Math.round(A[1] + (B[1] - A[1]) * t);
+      all++;
+      if (x <= 1 || y <= 1 || x >= w - 2 || y >= h - 2) { hit++; continue; }
+      let found = false;
+      for (let dy = -2; dy <= 2 && !found; dy++) for (let dx = -2; dx <= 2; dx++) if (map[(y + dy) * w + x + dx]) { found = true; break; }
+      if (found) hit++;
+    }
+  }
+  return hit / all;
+}
+
+/* ---------- Four sides from an outline ---------- */
+function dtHull(flat) {
+  const pts = [];
+  for (let i = 0; i < flat.length; i += 2) pts.push([flat[i], flat[i + 1]]);
+  pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower = [], upper = [];
+  for (const p of pts) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop(); lower.push(p); }
+  for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop(); upper.push(p); }
+  upper.pop(); lower.pop();
+  return lower.concat(upper);
+}
+const dtArea = q => { let a = 0; for (let i = 0; i < q.length; i++) { const p = q[i], r = q[(i + 1) % q.length]; a += p[0] * r[1] - r[0] * p[1]; } return a / 2; };
+// Keep the four hull points that matter most: repeatedly drop the point whose removal loses the least area.
+function dtCornersQuad(hull) {
+  const pts = hull.slice();
+  if (pts.length < 4) return null;
+  while (pts.length > 4) {
+    let bi = 0, ba = Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[(i + pts.length - 1) % pts.length], b = pts[i], c = pts[(i + 1) % pts.length];
+      const t = Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
+      if (t < ba) { ba = t; bi = i; }
+    }
+    pts.splice(bi, 1);
+  }
+  return pts;
+}
+// The four longest straight runs of the hull, extended until they meet. Finds corners hidden under a finger.
+function dtSidesQuad(hull) {
+  const n = hull.length;
+  if (n < 4) return null;
+  const segs = [];
+  for (let i = 0; i < n; i++) {
+    const a = hull[i], b = hull[(i + 1) % n], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len < 1e-6) continue;
+    const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    const last = segs[segs.length - 1];
+    if (last && Math.abs(Math.atan2(Math.sin(ang - last.ang), Math.cos(ang - last.ang))) < 0.14) { last.b = b; last.len += len; last.ang = Math.atan2(b[1] - last.a[1], b[0] - last.a[0]); }
+    else segs.push({ a, b, len, ang, i });
+  }
+  if (segs.length > 1) {
+    const f = segs[0], l = segs[segs.length - 1];
+    if (Math.abs(Math.atan2(Math.sin(f.ang - l.ang), Math.cos(f.ang - l.ang))) < 0.14) { f.a = l.a; f.len += l.len; segs.pop(); }
+  }
+  if (segs.length < 4) return null;
+  const top = segs.slice().sort((p, q) => q.len - p.len).slice(0, 4).sort((p, q) => p.i - q.i);
+  const quad = [];
+  for (let k = 0; k < 4; k++) {
+    const s1 = top[(k + 3) % 4], s2 = top[k];
+    const p = dtIntersect({ px: s1.a[0], py: s1.a[1], dx: s1.b[0] - s1.a[0], dy: s1.b[1] - s1.a[1] }, { px: s2.a[0], py: s2.a[1], dx: s2.b[0] - s2.a[0], dy: s2.b[1] - s2.a[1] });
+    if (!p) return null;
+    quad.push(p);
+  }
+  return quad;
+}
+function dtIntersect(L1, L2) {
+  const den = L1.dx * L2.dy - L1.dy * L2.dx;
+  if (Math.abs(den) < 1e-9 * Math.hypot(L1.dx, L1.dy) * Math.hypot(L2.dx, L2.dy)) return null;
+  const t = ((L2.px - L1.px) * L2.dy - (L2.py - L1.py) * L2.dx) / den;
+  return [L1.px + L1.dx * t, L1.py + L1.dy * t];
+}
+// Straight line through points (total least squares), refitted twice without the worst-fitting points.
+function dtFitLine(pts) {
+  let use = pts;
+  let L = null;
+  for (let round = 0; round < 3; round++) {
+    let mx = 0, my = 0;
+    for (const p of use) { mx += p[0]; my += p[1]; }
+    mx /= use.length; my /= use.length;
+    let sxx = 0, syy = 0, sxy = 0;
+    for (const p of use) { const dx = p[0] - mx, dy = p[1] - my; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; }
+    const ang = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+    L = { px: mx, py: my, dx: Math.cos(ang), dy: Math.sin(ang) };
+    if (round === 2) break;
+    const res = use.map(p => Math.abs((p[0] - mx) * -L.dy + (p[1] - my) * L.dx));
+    const sorted = res.slice().sort((a, b) => a - b), med = sorted[sorted.length >> 1];
+    const keep = use.filter((p, i) => res[i] <= Math.max(1, 2.5 * med));
+    if (keep.length < 5 || keep.length === use.length) break;
+    use = keep;
+  }
+  return L;
+}
+function dtConvex(q) {
+  let sign = 0;
+  for (let i = 0; i < 4; i++) {
+    const a = q[i], b = q[(i + 1) % 4], c = q[(i + 2) % 4];
+    const cr = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+    if (Math.abs(cr) < 1e-6) return false;
+    if (!sign) sign = Math.sign(cr); else if (Math.sign(cr) !== sign) return false;
+  }
+  return true;
+}
+// A page photographed at an angle is still roughly a rectangle: corners between 40° and 140°, opposite sides alike.
+function dtPlausible(q, F, minArea) {
+  if (!dtConvex(q)) return false;
+  const area = Math.abs(dtArea(q));
+  if (area < minArea * F.w * F.h) return false;
+  const len = i => Math.hypot(q[(i + 1) % 4][0] - q[i][0], q[(i + 1) % 4][1] - q[i][1]);
+  const L = [0, 1, 2, 3].map(len);
+  if (Math.min(L[0], L[2]) / Math.max(L[0], L[2]) < 0.35 || Math.min(L[1], L[3]) / Math.max(L[1], L[3]) < 0.35) return false;
+  for (let i = 0; i < 4; i++) {
+    const a = q[(i + 3) % 4], b = q[i], c = q[(i + 1) % 4];
+    const v1 = [a[0] - b[0], a[1] - b[1]], v2 = [c[0] - b[0], c[1] - b[1]];
+    const cos = (v1[0] * v2[0] + v1[1] * v2[1]) / (Math.hypot(...v1) * Math.hypot(...v2));
+    if (Math.abs(cos) > 0.77) return false;
+  }
+  // Corners may lie a little outside the picture (a page running off the edge), but not far.
+  const mx = F.w * 0.25, my = F.h * 0.25;
+  return q.every(([x, y]) => x > -mx && y > -my && x < F.w + mx && y < F.h + my);
+}
+function dtOrder(q) {
+  // Clockwise, starting top-left (smallest x + y).
+  const cx = q.reduce((s, p) => s + p[0], 0) / 4, cy = q.reduce((s, p) => s + p[1], 0) / 4;
+  const pts = q.slice().sort((a, b) => Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(b[1] - cy, b[0] - cx));
+  let start = 0;
+  for (let i = 1; i < 4; i++) if (pts[i][0] + pts[i][1] < pts[start][0] + pts[start][1]) start = i;
+  return [0, 1, 2, 3].map(k => pts[(start + k) % 4]);
+}
+
+/* ---------- Snapping sides onto the paper's edge ---------- */
+function dtSample(a, F, x, y) {
+  const { w, h } = F;
+  if (x < 0 || y < 0 || x > w - 1.001 || y > h - 1.001) return 0;
+  const x0 = x | 0, y0 = y | 0, fx = x - x0, fy = y - y0, i = y0 * w + x0;
+  return (a[i] * (1 - fx) + a[i + 1] * fx) * (1 - fy) + (a[i + w] * (1 - fx) + a[i + w + 1] * fx) * fy;
+}
+// radius: how far across each side to look, in pixels of the analysed picture.
+function dtRefine(F, quad, radius, iters = 2) {
+  const { w, h, gx, gy, gray } = F;
+  let q = dtOrder(quad), cover = 0, strength = 0;
+  for (let it = 0; it < iters; it++) {
+    const cx = q.reduce((s, p) => s + p[0], 0) / 4, cy = q.reduce((s, p) => s + p[1], 0) / 4;
+    const lines = [], covs = [], strs = [], pols = [];
+    let borderSides = 0;
+    for (let i = 0; i < 4; i++) {
+      const A = q[i], B = q[(i + 1) % 4], dx = B[0] - A[0], dy = B[1] - A[1], len = Math.hypot(dx, dy);
+      if (len < 6) return null;
+      let nx = -dy / len, ny = dx / len;
+      const mxs = (A[0] + B[0]) / 2, mys = (A[1] + B[1]) / 2;
+      if ((mxs - cx) * nx + (mys - cy) * ny < 0) { nx = -nx; ny = -ny; } // n points out of the page
+      const R = Math.max(2.5, Math.min(radius, len * 0.12));
+      // Which way should brightness change across the edge? Compare just inside with just outside.
+      let inside = 0, outside = 0, cnt = 0;
+      for (let k = 1; k < 8; k++) {
+        const px = A[0] + dx * k / 8, py = A[1] + dy * k / 8, off = Math.max(3, R * 0.8);
+        const xi = px - nx * off, yi = py - ny * off, xo = px + nx * off, yo = py + ny * off;
+        if (xo < 0 || yo < 0 || xo > w - 1 || yo > h - 1 || xi < 0 || yi < 0 || xi > w - 1 || yi > h - 1) continue;
+        inside += dtSample(gray, F, xi, yi); outside += dtSample(gray, F, xo, yo); cnt++;
+      }
+      const polarity = !cnt ? 0 : inside / cnt > outside / cnt + 5 ? -1 : outside / cnt > inside / cnt + 5 ? 1 : 0;
+      pols.push(cnt >= 3 ? polarity : null);
+      const K = clamp(Math.round(len / 5), 12, 48), pts = [];
+      let usable = 0, hits = 0, sum = 0;
+      for (let k = 0; k < K; k++) {
+        const t = 0.07 + 0.86 * (k + 0.5) / K, px = A[0] + dx * t, py = A[1] + dy * t;
+        if (px < 2 || py < 2 || px > w - 3 || py > h - 3) continue;
+        usable++;
+        let bestV = 0, bestR = 0;
+        const vals = [];
+        for (let r = -R; r <= R + 1e-6; r += 1) {
+          const sx = px + nx * r, sy = py + ny * r;
+          const d = dtSample(gx, F, sx, sy) * nx + dtSample(gy, F, sx, sy) * ny;
+          const v = polarity ? d * polarity : Math.abs(d);
+          vals.push(v);
+          const score = v * (1 - 0.35 * (r / R) * (r / R));
+          if (score > bestV) { bestV = score; bestR = vals.length - 1; }
+        }
+        const v = vals[bestR];
+        if (v < Math.max(2.5, F.gscale * 0.12)) continue;
+        let off = 0;
+        if (bestR > 0 && bestR < vals.length - 1) { const a = vals[bestR - 1], c = vals[bestR + 1], den = a - 2 * v + c; if (den < 0) off = clamp(0.5 * (a - c) / den, -0.5, 0.5); }
+        const rr = -R + bestR + off;
+        pts.push([px + nx * rr, py + ny * rr]);
+        hits++;
+        sum += v;
+      }
+      const line = pts.length >= 6 ? dtFitLine(pts) : { px: A[0], py: A[1], dx, dy };
+      let inl = 0;
+      if (pts.length >= 6) for (const p of pts) if (Math.abs((p[0] - line.px) * -line.dy + (p[1] - line.py) * line.dx) <= 1.5) inl++;
+      if (usable < 4) { borderSides++; covs.push(null); } else covs.push(inl / usable); // sides along the picture's border prove nothing
+      strs.push(hits ? sum / hits / F.gscale : 0);
+      lines.push(line);
+    }
+    const next = [];
+    for (let i = 0; i < 4; i++) {
+      const p = dtIntersect(lines[(i + 3) % 4], lines[i]);
+      if (!p) return null;
+      next.push(p);
+    }
+    if (!dtConvex(next)) return null;
+    if (next.some((p, i) => Math.hypot(p[0] - q[i][0], p[1] - q[i][1]) > radius * 4 + 6)) return null;
+    // At most one side may run along the picture's border. Shapes made of the frame and a desk's grain are not pages.
+    if (borderSides > 1) return null;
+    // Paper is lighter (or darker) than what's around it on every side. Wood grain and similar patterns flip both ways.
+    const known = pols.filter((v, i) => v !== null && covs[i] !== null), signed = known.filter(v => v !== 0);
+    if (signed.length < 2 || !signed.every(v => v === signed[0])) return null;
+    // A page darker than its surroundings must still look like paper, not a phone or a tablet.
+    if (signed[0] === 1) {
+      let sum = 0, cnt = 0;
+      for (let a = 1; a < 6; a++) for (let b = 1; b < 6; b++) {
+        const u = a / 6, v = b / 6;
+        const x = (1 - v) * ((1 - u) * next[0][0] + u * next[1][0]) + v * ((1 - u) * next[3][0] + u * next[2][0]);
+        const y = (1 - v) * ((1 - u) * next[0][1] + u * next[1][1]) + v * ((1 - u) * next[3][1] + u * next[2][1]);
+        if (x >= 0 && y >= 0 && x <= w - 1 && y <= h - 1) { sum += dtSample(gray, F, x, y); cnt++; }
+      }
+      if (!cnt || sum / cnt < 115) return null;
+    }
+    q = dtOrder(next);
+    const real = covs.filter(v => v !== null), realStr = strs.filter((v, i) => covs[i] !== null);
+    cover = real.reduce((s, v) => s + v, 0) / real.length;
+    strength = realStr.reduce((s, v) => s + v, 0) / realStr.length;
+    if (Math.min(...real) < 0.15) cover *= 0.6; // a side with no edge at all is suspicious
+  }
+  return { quad: q, cover, strength };
+}
+
+/* ---------- Putting it together ---------- */
+function dtScore(r) { return r ? r.cover * (0.65 + 0.35 * Math.min(1, r.strength * 2)) : 0; }
+// Quick candidates from each area's convex outline. The areas are kept for the slower straight-line search.
+function dtCandidates(F, minArea, live) {
+  const out = [], outers = [];
+  const masks = (live ? [dtBrightMask(F), dtOutlineMask(F, 1), dtDeskMask(F)] : [dtBrightMask(F), dtOutlineMask(F, 1), dtOutlineMask(F, 0), dtDeskMask(F)]).filter(Boolean);
+  for (const m of masks) {
+    for (const reg of dtRegions(m, F, minArea).slice(0, 2)) {
+      const outer = dtOuterEdge(reg, F);
+      const hull = dtHull(outer.edge);
+      if (hull.length < 4 || Math.abs(dtArea(hull)) < minArea * F.n) continue;
+      outers.push(outer);
+      for (const q of [dtSidesQuad(hull), dtCornersQuad(hull)]) if (q && dtPlausible(dtOrder(q), F, minArea)) out.push(dtOrder(q));
+    }
+  }
+  return { quads: dtUnique(out, F), outers };
+}
+function dtUnique(list, F) {
+  const uniq = [];
+  for (const q of list) if (!uniq.some(u => dtQuadDist(u, q, F) < 0.01)) uniq.push(q);
+  return uniq;
+}
+function dtQuadDist(a, b, F) {
+  const diag = Math.hypot(F.w, F.h);
+  return Math.max(...a.map((p, i) => Math.hypot(p[0] - b[i][0], p[1] - b[i][1]))) / diag;
+}
+// Find the page in a prepared picture. Returns corners in pixels of the analysed picture, with a confidence score.
+// live: the camera's quicker search, three ways of proposing areas instead of four.
+function dtDetect(F, minArea = 0.05, live = false) {
+  const diag = Math.hypot(F.w, F.h);
+  let best = null;
+  const tryAll = quads => {
+    for (const q of quads) {
+      const r = dtRefine(F, q, diag * 0.025, 2);
+      if (!r || !dtPlausible(r.quad, F, minArea)) continue;
+      r.score = dtScore(r);
+      if (!best || r.score > best.score) best = r;
+    }
+  };
+  const { quads, outers } = dtCandidates(F, minArea, live);
+  tryAll(quads);
+  // Not convincing yet (for example a hand over a corner): look for the page's straight sides as well.
+  if (!best || best.score < 0.8) {
+    const more = [];
+    for (const o of outers.slice(0, 4)) more.push(...dtLineQuads(dtHough(o.edge, F), F, minArea, o.map));
+    tryAll(dtUnique(more, F).filter(q => !quads.some(u => dtQuadDist(u, q, F) < 0.01)));
+  }
+  return best && best.cover >= 0.45 ? best : null;
+}
+const dtNorm = (q, F) => q.map(([x, y]) => [clamp(x / F.w, 0, 1), clamp(y / F.h, 0, 1)]);
+const dtPix = (q, F) => q.map(([x, y]) => [x * F.w, y * F.h]);
+
+// Still photos: a closer look at 640 pixels, then a final snap with a small search.
+function detectPageQuad(src) {
+  const F = dtFrame(src, 640);
+  if (!F) return null;
+  const r = dtDetect(F, 0.04);
+  if (!r) return null;
+  const fine = dtRefine(F, r.quad, 3, 2);
+  return dtNorm(fine && fine.cover >= r.cover * 0.85 ? fine.quad : r.quad, F);
+}
+
 /* ============================== Scan to PDF ============================== */
 // Photos of paper documents become straightened, cleaned-up PDF pages, all on the device.
 // Photos are kept as JPEG blobs between steps, so a long scan doesn't run an iPad out of memory.
@@ -4181,145 +4695,7 @@ async function preparePage(pg, src, hint) {
   pg.status = 'ready';
 }
 
-/* ---------- Finding the page in a photo ---------- */
-// Two ways of finding the page, and the one whose outline sits on the strongest edges wins:
-// 1. Paper is usually brighter than the surface under it. Split the picture into light and dark (Otsu's method)
-//    and take the bright region under the centre.
-// 2. On a light desk, paper and desk are close in brightness but the page still has an outline. Find strong edges,
-//    flood the background in from the border, and take what the flood can't reach.
-// The region's extreme points are the corners.
-function detectPageQuad(src) {
-  const sw = src.videoWidth || src.naturalWidth || src.width, sh = src.videoHeight || src.naturalHeight || src.height;
-  if (!sw || !sh) return null;
-  const s = 300 / Math.max(sw, sh);
-  const w = Math.max(24, Math.round(sw * s)), h = Math.max(24, Math.round(sh * s)), n = w * h;
-  const c = scanCanvas(w, h), x = c.getContext('2d', { willReadFrequently: true });
-  x.imageSmoothingQuality = 'high';
-  x.drawImage(src, 0, 0, w, h);
-  const d = x.getImageData(0, 0, w, h).data;
-  let g = new Float32Array(n);
-  for (let i = 0, j = 0; i < n; i++, j += 4) g[i] = 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2];
-  g = boxBlur(boxBlur(g, w, h, 2), w, h, 2);
-  const grad = sobel(g, w, h);
-  const cands = [quadFromMask(brightMask(g, n), w, h), quadFromMask(outlineMask(grad, w, h, 1), w, h), quadFromMask(outlineMask(grad, w, h, 2), w, h)].filter(Boolean);
-  let best = null, bestScore = 0;
-  for (const q of cands) { const sc = edgeScore(q, grad, w, h); if (sc > bestScore) { bestScore = sc; best = q; } }
-  if (!best || bestScore < 5) return null;
-  // Pull each corner half a pixel outwards so the page edge isn't trimmed.
-  return best.map(([qx, qy], i) => [clamp(qx + (i === 1 || i === 2 ? 0.5 : -0.5) / w, 0, 1), clamp(qy + (i >= 2 ? 0.5 : -0.5) / h, 0, 1)]);
-}
-function brightMask(g, n) {
-  const hist = new Float64Array(256);
-  for (let i = 0; i < n; i++) hist[Math.min(255, g[i] | 0)]++;
-  let total = 0;
-  for (let i = 0; i < 256; i++) total += i * hist[i];
-  let sumB = 0, wB = 0, best = -1, t = 128;
-  for (let i = 0; i < 256; i++) {
-    wB += hist[i];
-    if (!wB) continue;
-    const wF = n - wB;
-    if (!wF) break;
-    sumB += i * hist[i];
-    const mB = sumB / wB, mF = (total - sumB) / wF, between = wB * wF * (mB - mF) * (mB - mF);
-    if (between > best) { best = between; t = i; }
-  }
-  const m = new Uint8Array(n);
-  for (let i = 0; i < n; i++) m[i] = g[i] > t ? 1 : 0;
-  return m;
-}
-function sobel(g, w, h) {
-  const out = new Float32Array(w * h);
-  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
-    const i = y * w + x;
-    const gx = g[i - w + 1] + 2 * g[i + 1] + g[i + w + 1] - g[i - w - 1] - 2 * g[i - 1] - g[i + w - 1];
-    const gy = g[i + w - 1] + 2 * g[i + w] + g[i + w + 1] - g[i - w - 1] - 2 * g[i - w] - g[i - w + 1];
-    out[i] = Math.hypot(gx, gy);
-  }
-  return out;
-}
-function outlineMask(grad, w, h, gap) {
-  const n = w * h;
-  let max = 0;
-  for (let i = 0; i < n; i++) if (grad[i] > max) max = grad[i];
-  if (max < 6) return new Uint8Array(n);
-  // The strongest 12% of edges, and never the faint texture of a plain surface.
-  const bins = new Uint32Array(512), k = 511 / max;
-  for (let i = 0; i < n; i++) bins[(grad[i] * k) | 0]++;
-  let acc = 0, b = 511;
-  for (; b > 0; b--) { acc += bins[b]; if (acc >= n * 0.12) break; }
-  const thr = Math.max(6, b / k);
-  let e = new Uint8Array(n);
-  for (let i = 0; i < n; i++) e[i] = grad[i] > thr ? 1 : 0;
-  e = morph(e, w, h, gap, true);
-  const bg = new Uint8Array(n), q = new Int32Array(n);
-  let head = 0, tail = 0;
-  const push = p => { if (!e[p] && !bg[p]) { bg[p] = 1; q[tail++] = p; } };
-  for (let xx = 0; xx < w; xx++) { push(xx); push((h - 1) * w + xx); }
-  for (let yy = 0; yy < h; yy++) { push(yy * w); push(yy * w + w - 1); }
-  while (head < tail) {
-    const p = q[head++], px = p % w;
-    if (px > 0) push(p - 1);
-    if (px < w - 1) push(p + 1);
-    if (p >= w) push(p - w);
-    if (p < n - w) push(p + w);
-  }
-  const m = new Uint8Array(n);
-  for (let i = 0; i < n; i++) m[i] = bg[i] ? 0 : 1;
-  return m;
-}
-// How strongly the picture changes along the outline's sides. Sides lying on the picture's border don't count.
-function edgeScore(q, grad, w, h) {
-  let sum = 0, cnt = 0;
-  for (let i = 0; i < 4; i++) {
-    const [ax, ay] = q[i], [bx, by] = q[(i + 1) % 4];
-    for (let k = 1; k < 24; k++) {
-      const t = 0.1 + 0.8 * k / 24, px = (ax + (bx - ax) * t) * w, py = (ay + (by - ay) * t) * h;
-      if (px < 3 || py < 3 || px > w - 4 || py > h - 4) continue;
-      let mx = 0;
-      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-        const v = grad[clamp(Math.round(py) + dy, 0, h - 1) * w + clamp(Math.round(px) + dx, 0, w - 1)];
-        if (v > mx) mx = v;
-      }
-      sum += mx;
-      cnt++;
-    }
-  }
-  return cnt >= 12 ? sum / cnt : 0;
-}
-function quadFromMask(m0, w, h) {
-  const n = w * h;
-  let m = morph(morph(m0, w, h, 3, true), w, h, 3, false);
-  m = morph(morph(m, w, h, 2, false), w, h, 2, true);
-  const lab = new Int32Array(n).fill(-1), queue = new Int32Array(n), regions = [];
-  for (let i = 0; i < n; i++) {
-    if (!m[i] || lab[i] >= 0) continue;
-    const id = regions.length, r = { area: 0, sMin: Infinity, sMax: -Infinity, dMin: Infinity, dMax: -Infinity, tl: i, tr: i, br: i, bl: i };
-    let head = 0, tail = 0;
-    queue[tail++] = i;
-    lab[i] = id;
-    while (head < tail) {
-      const p = queue[head++], px = p % w, py = (p - px) / w, sm = px + py, df = px - py;
-      r.area++;
-      if (sm < r.sMin) { r.sMin = sm; r.tl = p; }
-      if (sm > r.sMax) { r.sMax = sm; r.br = p; }
-      if (df > r.dMax) { r.dMax = df; r.tr = p; }
-      if (df < r.dMin) { r.dMin = df; r.bl = p; }
-      if (px > 0 && m[p - 1] && lab[p - 1] < 0) { lab[p - 1] = id; queue[tail++] = p - 1; }
-      if (px < w - 1 && m[p + 1] && lab[p + 1] < 0) { lab[p + 1] = id; queue[tail++] = p + 1; }
-      if (py > 0 && m[p - w] && lab[p - w] < 0) { lab[p - w] = id; queue[tail++] = p - w; }
-      if (py < h - 1 && m[p + w] && lab[p + w] < 0) { lab[p + w] = id; queue[tail++] = p + w; }
-    }
-    regions.push(r);
-  }
-  if (!regions.length) return null;
-  const mid = lab[(h >> 1) * w + (w >> 1)];
-  const pick = mid >= 0 && regions[mid].area > 0.1 * n ? regions[mid] : regions.reduce((a, b) => (b.area > a.area ? b : a));
-  if (pick.area < 0.1 * n || pick.area > 0.96 * n) return null;
-  const pt = p => [((p % w) + 0.5) / w, (Math.floor(p / w) + 0.5) / h];
-  const quad = [pt(pick.tl), pt(pick.tr), pt(pick.br), pt(pick.bl)];
-  if (quadArea(quad) < 0.1 || !isConvex(quad)) return null;
-  return quad;
-}
+/* ---------- Finding the page in a photo: see 71-detect.js ---------- */
 function quadArea(q) {
   let a = 0;
   for (let i = 0; i < 4; i++) { const [x1, y1] = q[i], [x2, y2] = q[(i + 1) % 4]; a += x1 * y2 - x2 * y1; }
@@ -4986,14 +5362,15 @@ function scanEditorView() {
 // and outlines it. Once the page has been still for a moment, it takes the photo by itself and crops to the page.
 // It waits for the picture to change (a new page, or a hand turning one) before it takes the next photo.
 const liveCameraOk = () => !!(S.webapp && window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-const CAM_STEADY = 6; // matching looks in a row before the photo is taken, about two thirds of a second
+const CAM_STEADY = 6; // looks in a row that must agree before the photo is taken, about two thirds of a second
 const CAM_CHANGE = 12; // how different the picture must look before the next automatic photo
 let cam = null;
 
 function openLiveCamera({ retakeId = null } = {}) {
   if (!scan || cam) return;
   cam = {
-    stream: null, raf: 0, tick: 0, quad: null, steady: 0, lost: 0, armed: true, sig: null, lastAt: 0, shots: 0,
+    stream: null, raf: 0, tick: 0, quad: null, steady: 0, ready: 0, armed: true, sig: null, lastAt: 0, shots: 0, drawQuad: null,
+    trk: { quad: null, miss: 0, pending: null, pendN: 0, hist: [], cover: 0, n: 0 },
     auto: scanPrefs().auto !== false, retakeId, sigCanvas: null,
   };
   const video = el('video', { class: 'cam-video', playsinline: true, 'webkit-playsinline': true, muted: true, autoplay: true, 'aria-hidden': 'true' });
@@ -5129,13 +5506,13 @@ function showCameraProblem(e) {
 }
 function camLoop(now) {
   if (!cam || !cam.stream) return;
-  if (now - cam.tick >= 110 && cam.video.readyState >= 2) {
+  if (now - cam.tick >= (cam.trk.quad ? 90 : 130) && cam.video.readyState >= 2 && !cam.taking) {
     cam.tick = now;
-    let q = null;
-    try { q = detectPageQuad(cam.video); } catch (e) { q = null; }
-    camTrack(q);
-    drawCamOverlay();
+    let det = null;
+    try { det = camDetect(); } catch (e) { console.warn(e); det = null; }
+    camTrack(det);
   }
+  drawCamOverlay();
   cam.raf = requestAnimationFrame(camLoop);
 }
 // A tiny greyscale copy of the picture, to notice when it changes.
@@ -5147,22 +5524,71 @@ function frameSig(v) {
   for (let i = 0; i < 192; i++) out[i] = (d[i * 4] * 77 + d[i * 4 + 1] * 150 + d[i * 4 + 2] * 29) >> 8;
   return out;
 }
-function camTrack(q) {
-  if (cam.sig && !cam.armed) {
-    const sig = frameSig(cam.video);
-    let diff = 0;
-    for (let i = 0; i < sig.length; i++) diff += Math.abs(sig[i] - cam.sig[i]);
-    if (diff / sig.length > CAM_CHANGE) cam.armed = true;
+function camSigDiff(a, b) {
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]);
+  return d / a.length;
+}
+// Distance between two outlines, as a share of the picture's diagonal.
+function camDist(a, b) {
+  const v = cam.video, W = v.videoWidth || 1, H = v.videoHeight || 1, diag = Math.hypot(W, H);
+  return Math.max(...a.map((p, i) => Math.hypot((p[0] - b[i][0]) * W, (p[1] - b[i][1]) * H))) / diag;
+}
+// Follow the page: snap the last outline onto the new picture, and look from scratch every few frames or when lost.
+function camDetect() {
+  const F = dtFrame(cam.video, 360);
+  if (!F) return null;
+  const T = cam.trk, diag = Math.hypot(F.w, F.h), norm = q => q.map(([x, y]) => [x / F.w, y / F.h]);
+  let det = null;
+  if (T.quad) {
+    const r = dtRefine(F, dtPix(T.quad, F), diag * 0.035, 2);
+    if (r && r.cover >= 0.5 && dtPlausible(r.quad, F, 0.03)) det = { quad: norm(r.quad), cover: r.cover, score: dtScore(r) };
   }
-  if (!q) {
-    cam.steady = 0;
-    if (++cam.lost > 2) { cam.quad = null; cam.armed = true; }
+  T.n++;
+  if (!det || T.n % 4 === 0) {
+    const full = dtDetect(F, 0.03, true);
+    if (full && (!det || full.score > det.score + 0.08)) det = { quad: norm(full.quad), cover: full.cover, score: full.score };
+  }
+  return det;
+}
+function camTrack(det) {
+  if (cam.sig && !cam.armed && camSigDiff(frameSig(cam.video), cam.sig) > CAM_CHANGE) cam.armed = true;
+  const T = cam.trk;
+  if (!det) {
+    // Keep showing the outline through a brief miss, such as a hand passing over the page.
+    if (++T.miss > 7) { T.quad = null; T.hist = []; T.pending = null; }
   } else {
-    cam.lost = 0;
-    const move = cam.quad ? Math.max(...q.map((p, i) => dist2(p, cam.quad[i]))) : 1;
-    cam.steady = move < 0.012 ? cam.steady + 1 : 0;
-    cam.quad = cam.quad && move < 0.05 ? cam.quad.map((p, i) => [(p[0] + q[i][0]) / 2, (p[1] + q[i][1]) / 2]) : q;
-    if (cam.auto && cam.armed && cam.steady >= CAM_STEADY && performance.now() - cam.lastAt > 1200) captureFrame();
+    T.miss = 0;
+    T.cover = det.cover;
+    if (!T.quad) { T.quad = det.quad; T.hist = []; }
+    else {
+      const d = camDist(det.quad, T.quad);
+      if (d < 0.06) {
+        // Smooth hard when the page is still, follow quickly when it moves.
+        const a = d < 0.008 ? 0.25 : d < 0.02 ? 0.5 : 0.8;
+        T.quad = T.quad.map((p, i) => [p[0] + (det.quad[i][0] - p[0]) * a, p[1] + (det.quad[i][1] - p[1]) * a]);
+        T.pending = null; T.pendN = 0;
+      } else {
+        // Somewhere new: only move there once it has been seen three times running, so one odd frame can't jump the outline.
+        if (T.pending && camDist(det.quad, T.pending) < 0.04) T.pendN++; else { T.pending = det.quad; T.pendN = 1; }
+        if (T.pendN >= 3) { T.quad = det.quad; T.pending = null; T.pendN = 0; T.hist = []; }
+      }
+    }
+    T.hist.push(det.quad);
+    if (T.hist.length > CAM_STEADY) T.hist.shift();
+  }
+  cam.quad = T.quad ? T.quad.map(([x, y]) => [clamp(x, 0, 1), clamp(y, 0, 1)]) : null;
+  // Steady when the page is in view now and the last few looks agree with each other to within 1% of the picture.
+  const H = T.hist, last = H[H.length - 1];
+  if (!det) { cam.ready = Math.max(0, (cam.ready || 0) - 0.34); cam.steady = 0; }
+  else {
+    cam.ready = T.quad && last ? H.filter(q => camDist(q, last) < 0.01).length / CAM_STEADY : 0;
+    cam.steady = T.quad && H.length >= CAM_STEADY && cam.ready >= 1 && T.cover >= 0.6 ? cam.steady + 1 : 0;
+  }
+  if (cam.auto && cam.armed && cam.steady >= 1 && performance.now() - cam.lastAt > 1200) {
+    // The same scene as the last photo (say a hand passed over a page that's done): wait for a new page instead.
+    if (cam.sig && camSigDiff(frameSig(cam.video), cam.sig) < CAM_CHANGE * 0.5) cam.armed = false;
+    else captureFrame();
   }
   setCamStatus();
 }
@@ -5182,13 +5608,16 @@ function drawCamOverlay() {
   if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
   const x = c.getContext('2d');
   x.clearRect(0, 0, W, H);
-  if (!cam.quad || !v.videoWidth) return;
+  const target = cam.quad;
+  if (!target || !v.videoWidth) { cam.drawQuad = null; return; }
+  cam.drawQuad = cam.drawQuad ? cam.drawQuad.map((p, i) => [p[0] + (target[i][0] - p[0]) * 0.35, p[1] + (target[i][1] - p[1]) * 0.35]) : target.map(p => p.slice());
   const k = Math.min(W / v.videoWidth, H / v.videoHeight), dw = v.videoWidth * k, dh = v.videoHeight * k, dx = (W - dw) / 2, dy = (H - dh) / 2;
-  const pts = cam.quad.map(([qx, qy]) => [dx + qx * dw, dy + qy * dh]);
-  const taken = !cam.armed && cam.auto, ready = Math.min(1, cam.steady / CAM_STEADY);
+  const pts = cam.drawQuad.map(([qx, qy]) => [dx + qx * dw, dy + qy * dh]);
+  const taken = !cam.armed && cam.auto, ready = Math.min(1, cam.ready || 0), fade = cam.trk.miss ? Math.max(0.35, 1 - cam.trk.miss / 8) : 1;
+  x.globalAlpha = fade;
   x.lineJoin = 'round';
   x.lineWidth = 4 * dpr;
-  x.fillStyle = taken ? 'rgba(34, 197, 94, .22)' : `rgba(79, 140, 255, ${(0.12 + 0.2 * ready).toFixed(3)})`;
+  x.fillStyle = taken ? 'rgba(34, 197, 94, .22)' : `rgba(79, 140, 255, ${(0.1 + 0.22 * ready).toFixed(3)})`;
   x.strokeStyle = taken ? '#22c55e' : '#4f8cff';
   x.beginPath();
   pts.forEach(([px, py], i) => (i ? x.lineTo(px, py) : x.moveTo(px, py)));
@@ -5197,6 +5626,7 @@ function drawCamOverlay() {
   x.stroke();
   x.fillStyle = '#ffffff';
   for (const [px, py] of pts) { x.beginPath(); x.arc(px, py, 6 * dpr, 0, Math.PI * 2); x.fill(); }
+  x.globalAlpha = 1;
 }
 // How sharp the picture is: the spread of the Laplacian (edge contrast) over the page area.
 function frameSharpness(v, quad) {
@@ -5254,8 +5684,7 @@ async function captureFrame() {
     if (sh > best) { best = sh; frame.getContext('2d').drawImage(v, 0, 0, vw, vh); }
   }
   c0.lastSharpness = sharpness;
-  if (c0.stream) c0.sig = frameSig(v);
-  c0.taking = false;
+  try { if (c0.stream) c0.sig = frameSig(v); } finally { c0.taking = false; }
   if (!scan) { frame.width = frame.height = 0; return; }
   const retake = c0.retakeId ? scan.pages.find(p => p.id === c0.retakeId) : null;
   const pg = retake || { id: uid('s'), status: 'loading', rot: 0, quad: fullQuad() };
