@@ -10,6 +10,8 @@ Open, edit, sign and fill in PDF files in your browser, and scan paper documents
 
 To save a PDF, tap **Save PDF**, then **Save PDF** again, then **Save or shareâ€¦**, then **Save to Files**.
 
+To scan paper documents, tap **Scan**, then **Take photo**. Folio finds the page and takes the photo when you hold still. With **Text** set to **Editable**, Folio reads the words, so you can change them with **Edit text**.
+
 ## What's in this repository
 
 | File | What it does |
@@ -18,6 +20,7 @@ To save a PDF, tap **Save PDF**, then **Save PDF** again, then **Save or shareâ€
 | `sw.js` | Keeps a copy of the app on your device for offline use |
 | `manifest.webmanifest` | App name, colours and icons for the Home Screen |
 | `icons/` | App icons |
+| `ocr/` | The text reader ([Tesseract](https://github.com/naptha/tesseract.js), Apache 2.0) and its English data |
 | `.nojekyll` | Tells GitHub Pages to publish the files as they are |
 
 Built with [PDF.js](https://mozilla.github.io/pdf.js/) (Apache 2.0) and [pdf-lib](https://pdf-lib.js.org/) (MIT).

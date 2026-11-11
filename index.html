@@ -321,6 +321,8 @@ body:has(.scan) .install-hint { display: none; }
 .scan-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
 .scan-actions { display: flex; gap: 8px; margin-left: auto; }
 .scan-actions .btn { height: 44px; }
+.scan-status { align-self: center; display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; margin-right: 6px; }
+.spinner.small { width: 14px; height: 14px; border-width: 2px; }
 .scan-progress { flex: 1 1 280px; display: grid; gap: 8px; font-size: 13px; color: var(--muted); padding-block: 6px; }
 .scan-pager { display: flex; align-items: center; gap: 6px; font-family: var(--f-mono); font-size: 12.5px; color: var(--muted); }
 .scan-pager .icon-btn { width: 44px; height: 44px; }
@@ -347,6 +349,46 @@ body:has(.scan) .install-hint { display: none; }
 .scan-side .seg button:nth-child(n+3) { border-top: 1px solid var(--line); }
 .scan-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .scan-tools .btn { justify-content: flex-start; padding: 0 10px; height: 42px; font-size: 13.5px; }
+/* Live document camera: full screen, the page outlined as Folio finds it */
+.cam { position: fixed; inset: 0; z-index: 48; background: #000; color: #fff; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.cam-top { display: flex; align-items: center; gap: 12px; min-width: 0;
+  padding: calc(env(safe-area-inset-top, 0px) + 8px) max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px)); }
+.cam-close { background: transparent; border: 0; color: #fff; font-size: 16px; font-weight: 600; min-height: 44px; padding: 0 8px; flex: none; }
+.cam-status { margin: 0 auto; font-size: 15px; line-height: 1.35; text-align: center; background: rgba(0, 0, 0, .55); padding: 7px 16px; border-radius: 20px; min-width: 0; }
+.cam-status:empty { visibility: hidden; }
+.cam-extra { display: flex; align-items: center; gap: 10px; flex: none; }
+.cam-res { font-family: var(--f-mono); font-size: 12px; color: rgba(255, 255, 255, .85); border: 1px solid rgba(255, 255, 255, .4); border-radius: 6px; padding: 3px 7px; white-space: nowrap; }
+.cam-res:empty { display: none; }
+.cam-app { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 0; color: #fff; font-size: 15px; font-weight: 600; min-height: 44px; padding: 0 6px; white-space: nowrap; }
+.cam-app svg.ic { width: 18px; height: 18px; }
+@media (max-width: 700px) { .cam-app span, .cam-res { display: none; } }
+.cam-view { position: relative; min-height: 0; overflow: hidden; }
+.cam-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.cam-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.cam-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.cam-flash.go { animation: camflash .35s ease-out; }
+@keyframes camflash { from { opacity: .85; } to { opacity: 0; } }
+.cam-bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px;
+  padding: 14px max(20px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 16px) max(20px, env(safe-area-inset-left, 0px)); }
+.cam-done { justify-self: start; display: flex; align-items: center; gap: 12px; background: transparent; border: 0; color: #fff; font-size: 16px; font-weight: 600; min-height: 56px; padding: 0 4px; }
+.cam-thumb { position: relative; width: 42px; height: 56px; border-radius: 4px; background: rgba(255, 255, 255, .14) center / cover no-repeat; border: 2px solid rgba(255, 255, 255, .85); flex: none; }
+.cam-thumb b { position: absolute; top: -9px; right: -11px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #4f8cff; color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.cam-shutter { width: 76px; height: 76px; border-radius: 50%; border: 4px solid #fff; background: transparent; padding: 0; position: relative; }
+.cam-shutter::after { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: #fff; transition: transform .1s; }
+.cam-shutter:active::after { transform: scale(.88); }
+.cam-shutter:focus-visible { outline: 3px solid #4f8cff; outline-offset: 4px; }
+.cam-auto { justify-self: end; }
+.cam-auto .seg { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .35); }
+.cam-auto .seg button { color: #fff; height: 40px; padding: 0 14px; font-size: 14px; }
+.cam-auto .seg button + button { border-left-color: rgba(255, 255, 255, .35); }
+.cam-auto .seg button[aria-pressed="true"] { background: #fff; color: #111; }
+.cam-problem { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; text-align: center; padding: 24px; max-width: 480px; margin: 0 auto; }
+.cam-problem svg.ic { width: 48px; height: 48px; }
+.cam-problem h3 { margin: 0; font-family: var(--f-display); font-size: 22px; font-weight: 600; }
+.cam-problem p { margin: 0; color: rgba(255, 255, 255, .78); line-height: 1.5; }
+.cam-problem .btn { height: 44px; }
+body:has(.scan) .toasts, body:has(.cam) .toasts { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 76px); }
+@media (max-width: 560px) { .cam-auto .seg button { padding: 0 10px; } .cam-done span:last-child { display: none; } }
 .spinner { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; flex: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {
@@ -451,7 +493,7 @@ select.text-input { padding-right: 6px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 
-<script>window.FOLIO_WEBAPP = true;</script>
+<script>window.FOLIO_WEBAPP = true; window.FOLIO_OCR = true;</script>
 <script>/**
  * @licstart The following is the entire license notice for the
  * JavaScript code in this page
@@ -3948,7 +3990,9 @@ function openSignature() {
 /* ============================== Scan to PDF ============================== */
 // Photos of paper documents become straightened, cleaned-up PDF pages, all on the device.
 // Photos are kept as JPEG blobs between steps, so a long scan doesn't run an iPad out of memory.
-const SCAN = { workMax: 2600, prevMax: 1100, outMax: 2480, thumbMax: 360, quality: 0.85 };
+// workMax keeps full camera photos: 4096 pixels is the largest canvas side Safari allows on iPad.
+// outMax is an A4 page at 300 dpi. Text is read from a copy no bigger than ocrMax, which is faster and just as accurate.
+const SCAN = { workMax: 4096, prevMax: 1100, outMax: 3508, ocrMax: 2600, thumbMax: 360, quality: 0.85 };
 const SCAN_LOOKS = [['original', 'Original'], ['enhanced', 'Enhanced'], ['grey', 'Greyscale'], ['bw', 'Black and white']];
 const SCAN_SIZES = [['a4', 'A4'], ['letter', 'Letter'], ['photo', 'Same as photo']];
 const SCAN_PAPER = { a4: [595.28, 841.89], letter: [612, 792] };
@@ -4004,6 +4048,7 @@ function openScan({ insertAfter = null } = {}) {
     pages: [], look: SCAN_LOOKS.some(l => l[0] === prefs.look) ? prefs.look : 'enhanced',
     size: SCAN_SIZES.some(s => s[0] === prefs.size) ? prefs.size : 'a4',
     target: insertAfter != null && canAdd ? 'insert' : 'new', insertAfter, canAdd,
+    text: ocrAvailable() && prefs.text !== 'picture' ? 'editable' : 'picture',
     editing: null, busy: false, retake: null, gen: 0, ro: null, root: null, prevFocus: document.activeElement,
   };
   scanInputs();
@@ -4016,6 +4061,7 @@ function openScan({ insertAfter = null } = {}) {
 }
 async function requestCloseScan() {
   if (!scan || scan.busy) return;
+  if (cam) { closeLiveCamera(); return; }
   if (scan.editing) { closeScanEditor(); return; }
   if (scan.pages.length) {
     const n = scan.pages.length;
@@ -4026,6 +4072,9 @@ async function requestCloseScan() {
 }
 function closeScan() {
   if (!scan) return;
+  closeLiveCamera(true);
+  clearTimeout(scan.workTimer);
+  if (scan.ocrStart) scan.ocrStart.then(o => o && o.stop());
   if (scan.ro) scan.ro.disconnect();
   if (scan.editing) URL.revokeObjectURL(scan.editing.url);
   for (const p of scan.pages) if (p.thumbUrl) URL.revokeObjectURL(p.thumbUrl);
@@ -4035,11 +4084,14 @@ function closeScan() {
   try { prev?.focus?.({ preventScroll: true }); } catch (e) { /* gone */ }
 }
 function scanKey(e) {
-  if (e.key === 'Escape') { e.preventDefault(); requestCloseScan(); }
+  if (e.key !== 'Escape') return;
+  e.preventDefault();
+  if (cam) closeLiveCamera(); else requestCloseScan();
 }
 
 /* ---------- Adding photos ---------- */
-function takePhoto() { scanInputs().cam.click(); }
+function takePhoto() { if (liveCameraOk()) openLiveCamera(); else takePhotoNative(); }
+function takePhotoNative() { scanInputs().cam.click(); }
 function choosePhotos() { scanInputs().lib.click(); }
 function scanFilesChosen(files) {
   const imgs = files.filter(f => f.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif|gif|bmp)$/i.test(f.name));
@@ -4103,20 +4155,26 @@ function drawScaled(src, max) {
 }
 async function importScanPhoto(file, pg) {
   const { img, url } = await loadPhoto(file);
-  let work;
   try {
     if (!img.naturalWidth || !img.naturalHeight) throw new Error('empty');
-    work = drawScaled(img, SCAN.workMax);
+    await preparePage(pg, img);
   } finally { URL.revokeObjectURL(url); }
+}
+// Turn a photo, canvas or camera frame into a scanned page: keep compressed copies, find the page, draw a thumbnail.
+// hint is a page outline found earlier (by the live camera), used when the still photo gives no clear answer.
+async function preparePage(pg, src, hint) {
+  pg.ver = (pg.ver || 0) + 1;
+  pg.out = null;
+  const work = drawScaled(src, SCAN.workMax);
   const prev = drawScaled(work, SCAN.prevMax);
   pg.work = await canvasBlob(work, 0.92);
   pg.ww = work.width; pg.wh = work.height;
   work.width = work.height = 0;
   pg.prev = await canvasBlob(prev, 0.9);
   pg.pw = prev.width; pg.ph = prev.height;
-  const found = detectPageQuad(prev);
+  const found = detectPageQuad(prev) || hint || null;
   pg.quad = found ? found.map(c => c.slice()) : fullQuad();
-  pg.found = found;
+  pg.found = found ? found.map(c => c.slice()) : null;
   pg.rot = 0;
   prev.width = prev.height = 0;
   await refreshScanThumb(pg);
@@ -4124,11 +4182,17 @@ async function importScanPhoto(file, pg) {
 }
 
 /* ---------- Finding the page in a photo ---------- */
-// Paper is usually brighter than the desk under it. Split the photo into light and dark (Otsu's method),
-// close the gaps that text leaves, take the bright region under the centre, and use its extreme points as corners.
+// Two ways of finding the page, and the one whose outline sits on the strongest edges wins:
+// 1. Paper is usually brighter than the surface under it. Split the picture into light and dark (Otsu's method)
+//    and take the bright region under the centre.
+// 2. On a light desk, paper and desk are close in brightness but the page still has an outline. Find strong edges,
+//    flood the background in from the border, and take what the flood can't reach.
+// The region's extreme points are the corners.
 function detectPageQuad(src) {
-  const s = 300 / Math.max(src.width, src.height);
-  const w = Math.max(24, Math.round(src.width * s)), h = Math.max(24, Math.round(src.height * s)), n = w * h;
+  const sw = src.videoWidth || src.naturalWidth || src.width, sh = src.videoHeight || src.naturalHeight || src.height;
+  if (!sw || !sh) return null;
+  const s = 300 / Math.max(sw, sh);
+  const w = Math.max(24, Math.round(sw * s)), h = Math.max(24, Math.round(sh * s)), n = w * h;
   const c = scanCanvas(w, h), x = c.getContext('2d', { willReadFrequently: true });
   x.imageSmoothingQuality = 'high';
   x.drawImage(src, 0, 0, w, h);
@@ -4136,6 +4200,15 @@ function detectPageQuad(src) {
   let g = new Float32Array(n);
   for (let i = 0, j = 0; i < n; i++, j += 4) g[i] = 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2];
   g = boxBlur(boxBlur(g, w, h, 2), w, h, 2);
+  const grad = sobel(g, w, h);
+  const cands = [quadFromMask(brightMask(g, n), w, h), quadFromMask(outlineMask(grad, w, h, 1), w, h), quadFromMask(outlineMask(grad, w, h, 2), w, h)].filter(Boolean);
+  let best = null, bestScore = 0;
+  for (const q of cands) { const sc = edgeScore(q, grad, w, h); if (sc > bestScore) { bestScore = sc; best = q; } }
+  if (!best || bestScore < 5) return null;
+  // Pull each corner half a pixel outwards so the page edge isn't trimmed.
+  return best.map(([qx, qy], i) => [clamp(qx + (i === 1 || i === 2 ? 0.5 : -0.5) / w, 0, 1), clamp(qy + (i >= 2 ? 0.5 : -0.5) / h, 0, 1)]);
+}
+function brightMask(g, n) {
   const hist = new Float64Array(256);
   for (let i = 0; i < n; i++) hist[Math.min(255, g[i] | 0)]++;
   let total = 0;
@@ -4150,9 +4223,72 @@ function detectPageQuad(src) {
     const mB = sumB / wB, mF = (total - sumB) / wF, between = wB * wF * (mB - mF) * (mB - mF);
     if (between > best) { best = between; t = i; }
   }
-  let m = new Uint8Array(n);
+  const m = new Uint8Array(n);
   for (let i = 0; i < n; i++) m[i] = g[i] > t ? 1 : 0;
-  m = morph(morph(m, w, h, 3, true), w, h, 3, false);
+  return m;
+}
+function sobel(g, w, h) {
+  const out = new Float32Array(w * h);
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x;
+    const gx = g[i - w + 1] + 2 * g[i + 1] + g[i + w + 1] - g[i - w - 1] - 2 * g[i - 1] - g[i + w - 1];
+    const gy = g[i + w - 1] + 2 * g[i + w] + g[i + w + 1] - g[i - w - 1] - 2 * g[i - w] - g[i - w + 1];
+    out[i] = Math.hypot(gx, gy);
+  }
+  return out;
+}
+function outlineMask(grad, w, h, gap) {
+  const n = w * h;
+  let max = 0;
+  for (let i = 0; i < n; i++) if (grad[i] > max) max = grad[i];
+  if (max < 6) return new Uint8Array(n);
+  // The strongest 12% of edges, and never the faint texture of a plain surface.
+  const bins = new Uint32Array(512), k = 511 / max;
+  for (let i = 0; i < n; i++) bins[(grad[i] * k) | 0]++;
+  let acc = 0, b = 511;
+  for (; b > 0; b--) { acc += bins[b]; if (acc >= n * 0.12) break; }
+  const thr = Math.max(6, b / k);
+  let e = new Uint8Array(n);
+  for (let i = 0; i < n; i++) e[i] = grad[i] > thr ? 1 : 0;
+  e = morph(e, w, h, gap, true);
+  const bg = new Uint8Array(n), q = new Int32Array(n);
+  let head = 0, tail = 0;
+  const push = p => { if (!e[p] && !bg[p]) { bg[p] = 1; q[tail++] = p; } };
+  for (let xx = 0; xx < w; xx++) { push(xx); push((h - 1) * w + xx); }
+  for (let yy = 0; yy < h; yy++) { push(yy * w); push(yy * w + w - 1); }
+  while (head < tail) {
+    const p = q[head++], px = p % w;
+    if (px > 0) push(p - 1);
+    if (px < w - 1) push(p + 1);
+    if (p >= w) push(p - w);
+    if (p < n - w) push(p + w);
+  }
+  const m = new Uint8Array(n);
+  for (let i = 0; i < n; i++) m[i] = bg[i] ? 0 : 1;
+  return m;
+}
+// How strongly the picture changes along the outline's sides. Sides lying on the picture's border don't count.
+function edgeScore(q, grad, w, h) {
+  let sum = 0, cnt = 0;
+  for (let i = 0; i < 4; i++) {
+    const [ax, ay] = q[i], [bx, by] = q[(i + 1) % 4];
+    for (let k = 1; k < 24; k++) {
+      const t = 0.1 + 0.8 * k / 24, px = (ax + (bx - ax) * t) * w, py = (ay + (by - ay) * t) * h;
+      if (px < 3 || py < 3 || px > w - 4 || py > h - 4) continue;
+      let mx = 0;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const v = grad[clamp(Math.round(py) + dy, 0, h - 1) * w + clamp(Math.round(px) + dx, 0, w - 1)];
+        if (v > mx) mx = v;
+      }
+      sum += mx;
+      cnt++;
+    }
+  }
+  return cnt >= 12 ? sum / cnt : 0;
+}
+function quadFromMask(m0, w, h) {
+  const n = w * h;
+  let m = morph(morph(m0, w, h, 3, true), w, h, 3, false);
   m = morph(morph(m, w, h, 2, false), w, h, 2, true);
   const lab = new Int32Array(n).fill(-1), queue = new Int32Array(n), regions = [];
   for (let i = 0; i < n; i++) {
@@ -4182,8 +4318,7 @@ function detectPageQuad(src) {
   const pt = p => [((p % w) + 0.5) / w, (Math.floor(p / w) + 0.5) / h];
   const quad = [pt(pick.tl), pt(pick.tr), pt(pick.br), pt(pick.bl)];
   if (quadArea(quad) < 0.1 || !isConvex(quad)) return null;
-  // Pull each corner half a pixel outwards so the page edge isn't trimmed.
-  return quad.map(([qx, qy], i) => [clamp(qx + (i === 1 || i === 2 ? 0.5 : -0.5) / w, 0, 1), clamp(qy + (i >= 2 ? 0.5 : -0.5) / h, 0, 1)]);
+  return quad;
 }
 function quadArea(q) {
   let a = 0;
@@ -4412,6 +4547,103 @@ async function refreshAllThumbs() {
   }
 }
 
+/* ---------- Getting pages ready in the background ---------- */
+// While the person reviews their pages, Folio draws each one at full quality and reads its text,
+// so Make PDF has little left to do. It pauses while the camera or the corner editor is open.
+const geomKey = pg => JSON.stringify([pg.ver, pg.quad, pg.rot, scan.size]);
+const wantsText = () => scan.text === 'editable' && ocrAvailable();
+function pageReady(pg, text = wantsText()) {
+  const o = pg.out;
+  return !!(o && o.geom === geomKey(pg) && o.look === scan.look && (!text || o.blocks || o.failed));
+}
+function getScanOcr() {
+  if (!scan) return Promise.resolve(null);
+  if (!scan.ocrStart) scan.ocrStart = startOcr();
+  return scan.ocrStart;
+}
+function queueScanWork() {
+  if (!scan) return;
+  clearTimeout(scan.workTimer);
+  scan.workTimer = setTimeout(pumpScanWork, 350);
+}
+function pumpScanWork() {
+  if (!scan || scan.workPromise) return;
+  const s0 = scan;
+  s0.workPromise = (async () => {
+    while (scan === s0 && !s0.busy && !cam && !s0.editing) {
+      const pg = s0.pages.find(p => p.status === 'ready' && !pageReady(p));
+      if (!pg) break;
+      await prepareOutput(pg, wantsText());
+      updateScanStatus();
+      await scanYield();
+    }
+  })().catch(e => console.warn('Background page work stopped:', e)).finally(() => {
+    s0.workPromise = null;
+    if (scan === s0) updateScanStatus();
+  });
+}
+async function prepareOutput(pg, text, progress) {
+  const geom = geomKey(pg), look = scan.look;
+  let out = pg.out && pg.out.geom === geom ? { ...pg.out } : { geom, look: null, blocks: null, failed: false };
+  let lum = null;
+  if (out.look !== look || !out.blob) {
+    const c = await renderScanPage(pg, { from: 'work', maxSide: SCAN.outMax, look, size: scan.size });
+    out.blob = await canvasBlob(c, SCAN.quality);
+    out.imgW = c.width; out.imgH = c.height; out.look = look;
+    if (text && !out.blocks) lum = lumaOf(c);
+    c.width = c.height = 0;
+  }
+  if (text && !out.blocks && !out.failed) {
+    const ocr = await getScanOcr();
+    if (!ocr) out.failed = true;
+    else {
+      try {
+        // Read from a copy no bigger than ocrMax, then scale the word positions back up to the full page.
+        const f = Math.min(1, SCAN.ocrMax / Math.max(out.imgW, out.imgH));
+        let image = out.blob, w = out.imgW, h = out.imgH;
+        if (f < 1 || !lum) {
+          const bmp = await decodeBlob(out.blob);
+          w = Math.round(out.imgW * f); h = Math.round(out.imgH * f);
+          const c = scanCanvas(w, h), x = c.getContext('2d');
+          x.imageSmoothingQuality = 'high';
+          x.drawImage(bmp, 0, 0, w, h);
+          if (bmp.close) bmp.close();
+          lum = lumaOf(c);
+          if (f < 1) image = await canvasBlob(c, 0.92);
+          c.width = c.height = 0;
+        }
+        const blocks = await ocr.read(image, progress);
+        markBoldLines(blocks, lum, w, h);
+        if (f < 1) scaleBlocks(blocks, out.imgW / w);
+        out.blocks = blocks;
+      } catch (e) {
+        console.warn('Text reading failed:', e);
+        out.failed = true;
+      }
+    }
+  }
+  if (scan && scan.pages.includes(pg) && geomKey(pg) === geom && scan.look === look) pg.out = out;
+  return out;
+}
+function scaleBlocks(blocks, k) {
+  const sb = b => { if (b) { b.x0 *= k; b.y0 *= k; b.x1 *= k; b.y1 *= k; } };
+  for (const b of blocks) for (const p of b.paragraphs || []) for (const l of p.lines || []) {
+    sb(l.bbox); sb(l.baseline);
+    if (l.rowAttributes) for (const key of ['rowHeight', 'ascenders', 'descenders']) if (typeof l.rowAttributes[key] === 'number') l.rowAttributes[key] *= k;
+    for (const wd of l.words || []) sb(wd.bbox);
+  }
+}
+function updateScanStatus() {
+  const el2 = scan && $('.scan-status', scan.root);
+  if (!el2) return;
+  const n = scan.pages.length;
+  if (!n || !wantsText() || scan.busy) { el2.replaceChildren(); return; }
+  const done = scan.pages.filter(p => pageReady(p) && p.out.blocks).length;
+  const working = !!scan.workPromise;
+  el2.replaceChildren(working && done < n ? el('span', { class: 'spinner small', 'aria-hidden': 'true' }) : '',
+    done === n ? `Text read on ${n === 1 ? 'the page' : `all ${n} pages`}` : working ? `Reading the text: ${done} of ${n} pages done` : `Text read on ${done} of ${n} pages`);
+}
+
 /* ---------- Making the PDF ---------- */
 function scanFileName() {
   const d = new Date(), p2 = v => String(v).padStart(2, '0');
@@ -4423,25 +4655,29 @@ function scanPagePoints(w, h, size) {
   return w >= h ? [long, r2(long * h / w)] : [r2(long * w / h), long];
 }
 async function buildScanPdf(progress) {
-  const L = PDFLib, name = scanFileName(), pages = scan.pages.slice();
+  if (scan.workPromise) { progress(0, 'Finishing the page Folio is working on…'); await scan.workPromise; }
+  const L = PDFLib, name = scanFileName(), pages = scan.pages.slice(), n = pages.length, text = wantsText();
   const doc = await L.PDFDocument.create();
   doc.setTitle(name.replace(/\.pdf$/, ''));
   doc.setCreator('Folio PDF Editor');
   doc.setProducer('Folio PDF Editor');
-  for (let i = 0; i < pages.length; i++) {
-    progress(i / pages.length, `Making page ${i + 1} of ${pages.length}…`);
+  let words = 0, ocrFailed = false;
+  for (let i = 0; i < n; i++) {
+    const pg = pages[i], ready = pageReady(pg, text);
+    const label = ready ? `Adding page ${i + 1} of ${n}…` : text ? `Reading the text on page ${i + 1} of ${n}…` : `Making page ${i + 1} of ${n}…`;
+    progress(i / n, label);
     await scanYield();
-    const c = await renderScanPage(pages[i], { from: 'work', maxSide: SCAN.outMax, look: scan.look, size: scan.size });
-    const blob = await canvasBlob(c, SCAN.quality);
-    c.width = c.height = 0;
-    const img = await doc.embedJpg(new Uint8Array(await blob.arrayBuffer()));
+    const out = ready ? pg.out : await prepareOutput(pg, text, f => progress((i + 0.25 + 0.75 * f) / n, label));
+    if (text && !out.blocks) ocrFailed = true;
+    const img = await doc.embedJpg(new Uint8Array(await out.blob.arrayBuffer()));
     const [pw, ph] = scanPagePoints(img.width, img.height, scan.size);
     const page = doc.addPage([pw, ph]);
-    const k = Math.min(pw / img.width, ph / img.height), w = img.width * k, h = img.height * k;
-    page.drawImage(img, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
+    const k = Math.min(pw / img.width, ph / img.height), w = img.width * k, h = img.height * k, box = { ox: (pw - w) / 2, oy: (ph - h) / 2, w, h, imgW: out.imgW, imgH: out.imgH };
+    page.drawImage(img, { x: box.ox, y: box.oy, width: w, height: h });
+    if (out.blocks) words += await addTextLayer(doc, page, out.blocks, box);
   }
   progress(1, 'Opening your PDF…');
-  return { bytes: await doc.save(), name };
+  return { bytes: await doc.save(), name, words, ocrFailed };
 }
 async function finishScan() {
   if (!scan || scan.busy || !scan.pages.length || scan.pages.some(p => p.status !== 'ready')) return;
@@ -4450,7 +4686,7 @@ async function finishScan() {
   const bar = $('.scan-progress i', scan.root), msg = $('.scan-progress span', scan.root);
   const progress = (f, t) => { if (bar) bar.style.width = Math.round(f * 100) + '%'; if (msg) msg.textContent = t; };
   try {
-    const { bytes, name } = await buildScanPdf(progress);
+    const { bytes, name, words, ocrFailed } = await buildScanPdf(progress);
     const file = new File([bytes], name, { type: 'application/pdf' });
     const n = scan.pages.length;
     if (scan.target === 'new') {
@@ -4460,7 +4696,10 @@ async function finishScan() {
       S.freshName = true;
       setDirty(true);
       closeScan();
-      toast(`Your scan is ready: ${n} page${n === 1 ? '' : 's'}. ${scanTouch() ? 'Tap' : 'Choose'} Save PDF to keep it.`, 'ok', 7000);
+      const tap = scanTouch() ? 'Tap' : 'Choose';
+      toast(`Your scan is ready: ${n} page${n === 1 ? '' : 's'}. ${tap} Save PDF to keep it.`, 'ok', 7000);
+      if (words) toast(`Folio read ${words} word${words === 1 ? '' : 's'}. To change them, ${tap.toLowerCase()} Edit text, then ${tap.toLowerCase()} a line.`, 'info', 9000);
+      else if (ocrFailed) toast('Folio couldn’t read the text, so the pages are pictures only.', 'error', 8000);
     } else {
       const after = scan.target === 'insert' ? clamp(scan.insertAfter, -1, S.pages.length - 1) : S.pages.length - 1;
       scan.busy = false;
@@ -4523,8 +4762,9 @@ function renderScan() {
       body = el('div', { class: 'scan-body' }, el('div', { class: 'scan-empty' }, el('div', { class: 'scan-empty-in' },
         icon('i-camera'),
         el('h3', { text: 'Scan paper documents' }),
-        el('p', { text: touch
-          ? 'Take a photo of each page. Folio finds the edges of the page, straightens it and cleans it up. Then it puts all the pages into one PDF.'
+        el('p', { text: touch && liveCameraOk()
+          ? 'Point the camera at a page. Folio finds the page and takes the photo when you hold still. It straightens and cleans up each page, then puts them all into one PDF.'
+          : touch ? 'Take a photo of each page. Folio finds the edges of the page, straightens it and cleans it up. Then it puts all the pages into one PDF.'
           : 'Choose photos of each page. Folio finds the edges of the page, straightens it and cleans it up. Then it puts all the pages into one PDF.' }),
         el('p', { class: 'scan-tip', text: 'For the best result, put the page on a darker surface in good light.' }),
         el('div', { class: 'row' }, ...scanAddButtons(true)))));
@@ -4551,6 +4791,8 @@ function renderScan() {
     foot = scanFooter();
   }
   sheet.replaceChildren(head, body, foot);
+  updateScanStatus();
+  queueScanWork();
 }
 function scanFooter() {
   const n = scan.pages.length, loading = scan.pages.some(p => p.status !== 'ready');
@@ -4562,11 +4804,14 @@ function scanFooter() {
   const opts = el('div', { class: 'scan-opts' },
     el('div', { class: 'scan-opt' }, el('span', { class: 'scan-lbl', text: 'Look' }), seg(SCAN_LOOKS, scan.look, setLook, 'Look')),
     el('div', { class: 'scan-opt' }, el('span', { class: 'scan-lbl', text: 'Page size' }), seg(SCAN_SIZES, scan.size, setSize, 'Page size')),
+    ocrAvailable() ? el('div', { class: 'scan-opt' }, el('span', { class: 'scan-lbl', text: 'Text' }),
+      seg([['editable', 'Editable'], ['picture', 'Picture only']], scan.text, v => { scan.text = v; scanPrefs({ text: v }); renderScan(); }, 'Text')) : null,
     scan.canAdd && scan.target !== 'insert' ? el('div', { class: 'scan-opt' }, el('span', { class: 'scan-lbl', text: 'Put pages in' }),
       seg([['new', 'A new PDF'], ['append', 'This PDF']], scan.target, v => { scan.target = v; renderScan(); }, 'Put pages in')) : null);
   const label = scan.target === 'new' ? (n ? `Make PDF (${n} page${n === 1 ? '' : 's'})` : 'Make PDF') : `Add ${n || ''} page${n === 1 ? '' : 's'}`.replace('  ', ' ');
   return el('div', { class: 'scan-foot' }, opts,
     el('div', { class: 'scan-actions' },
+      el('span', { class: 'scan-status', role: 'status' }),
       el('button', { class: 'btn ghost', type: 'button', onclick: requestCloseScan, text: 'Cancel' }),
       el('button', { class: 'btn primary', type: 'button', id: 'scanMake', disabled: !n || loading, onclick: finishScan }, icon('i-save'), label)));
 }
@@ -4713,7 +4958,7 @@ function scanEditorView() {
     el('button', { class: 'btn', type: 'button', onclick: () => setQuad(fullQuad()) }, icon('i-fit'), 'Whole photo'),
     el('button', { class: 'btn', type: 'button', onclick: () => { pg.rot = (pg.rot + 270) % 360; updateResult(); } }, icon('i-rot-l'), 'Rotate left'),
     el('button', { class: 'btn', type: 'button', onclick: () => { pg.rot = (pg.rot + 90) % 360; updateResult(); } }, icon('i-rot-r'), 'Rotate right'),
-    scanTouch() ? el('button', { class: 'btn', type: 'button', onclick: () => { scan.retake = pg.id; takePhoto(); } }, icon('i-camera'), 'Retake') : null,
+    scanTouch() ? el('button', { class: 'btn', type: 'button', onclick: () => { if (liveCameraOk()) openLiveCamera({ retakeId: pg.id }); else { scan.retake = pg.id; takePhotoNative(); } } }, icon('i-camera'), 'Retake') : null,
     el('button', { class: 'btn danger', type: 'button', onclick: async () => { await closeScanEditor(true); removeScanPage(pg); } }, icon('i-trash'), 'Remove page'));
   const side = el('aside', { class: 'scan-side' },
     el('p', { text: scanTouch() ? 'Drag each corner to a corner of the page. A close-up appears while you drag.' : 'Drag each corner to a corner of the page.' }),
@@ -4734,6 +4979,464 @@ function scanEditorView() {
       scanIconBtn('i-right', 'Next page', () => go(1), i === n - 1)),
     el('div', { class: 'scan-actions' }, el('button', { class: 'btn primary', type: 'button', onclick: () => closeScanEditor() }, icon('i-tick'), 'Done')));
   return [body, foot];
+}
+
+/* ============================== Live document camera ============================== */
+// In the iPad app, Take photo opens a live camera view. Several times a second Folio looks for a page in the picture
+// and outlines it. Once the page has been still for a moment, it takes the photo by itself and crops to the page.
+// It waits for the picture to change (a new page, or a hand turning one) before it takes the next photo.
+const liveCameraOk = () => !!(S.webapp && window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+const CAM_STEADY = 6; // matching looks in a row before the photo is taken, about two thirds of a second
+const CAM_CHANGE = 12; // how different the picture must look before the next automatic photo
+let cam = null;
+
+function openLiveCamera({ retakeId = null } = {}) {
+  if (!scan || cam) return;
+  cam = {
+    stream: null, raf: 0, tick: 0, quad: null, steady: 0, lost: 0, armed: true, sig: null, lastAt: 0, shots: 0,
+    auto: scanPrefs().auto !== false, retakeId, sigCanvas: null,
+  };
+  const video = el('video', { class: 'cam-video', playsinline: true, 'webkit-playsinline': true, muted: true, autoplay: true, 'aria-hidden': 'true' });
+  video.muted = true;
+  const overlay = el('canvas', { class: 'cam-overlay', 'aria-hidden': 'true' });
+  const flash = el('div', { class: 'cam-flash', 'aria-hidden': 'true' });
+  const status = el('p', { class: 'cam-status', role: 'status', 'aria-live': 'polite', text: 'Starting the camera…' });
+  const thumb = el('span', { class: 'cam-thumb', 'aria-hidden': 'true' });
+  const done = el('button', { class: 'cam-done', type: 'button', onclick: () => closeLiveCamera() }, thumb, el('span', { text: 'Done' }));
+  const shutter = el('button', { class: 'cam-shutter', type: 'button', 'aria-label': 'Take the photo now', onclick: () => captureFrame() });
+  const autoBox = el('div', { class: 'cam-auto' });
+  const view = el('div', { class: 'cam-view' }, video, overlay, flash);
+  const root = el('div', { class: 'cam', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Document camera' },
+    el('div', { class: 'cam-top' },
+      el('button', { class: 'cam-close', type: 'button', onclick: () => closeLiveCamera(), text: retakeId ? 'Cancel' : 'Close' }),
+      status,
+      el('div', { class: 'cam-extra' },
+        el('span', { class: 'cam-res', title: 'Camera resolution in use' }),
+        el('button', { class: 'cam-app', type: 'button', title: 'Take a full-size photo with the iPad Camera app', onclick: () => {
+          const retake = cam && cam.retakeId;
+          closeLiveCamera();
+          if (scan && retake) scan.retake = retake;
+          takePhotoNative();
+        } }, icon('i-camera'), el('span', { text: 'Camera app' })))),
+    view,
+    el('div', { class: 'cam-bar' }, done, shutter, autoBox));
+  Object.assign(cam, { root, video, overlay, flash, status, thumb, done, view, autoBox });
+  renderCamAuto();
+  updateCamDone();
+  scan.root.append(root);
+  document.addEventListener('visibilitychange', camVisibility);
+  startCameraStream();
+  setTimeout(() => shutter.focus({ preventScroll: true }), 60);
+}
+function renderCamAuto() {
+  if (!cam) return;
+  cam.autoBox.replaceChildren(seg([['auto', 'Auto'], ['manual', 'Manual']], cam.auto ? 'auto' : 'manual', v => {
+    cam.auto = v === 'auto';
+    cam.steady = 0;
+    scanPrefs({ auto: cam.auto });
+    renderCamAuto();
+    setCamStatus();
+  }, 'When to take the photo'));
+}
+function waitForVideo(v) {
+  return new Promise((res, rej) => {
+    if (v.videoWidth) { res(); return; }
+    const t = setTimeout(() => rej(new Error('The camera sent no picture.')), 10000);
+    v.addEventListener('loadedmetadata', () => { clearTimeout(t); res(); }, { once: true });
+  });
+}
+async function startCameraStream() {
+  if (!cam) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 4096 }, height: { ideal: 3072 } } });
+    if (!cam) { stream.getTracks().forEach(t => t.stop()); return; }
+    cam.stream = stream;
+    const track = stream.getVideoTracks()[0];
+    await bestCameraMode(track);
+    await setupPhotoCapture(track);
+    if (!cam || cam.stream !== stream) { stream.getTracks().forEach(t => t.stop()); return; }
+    cam.video.srcObject = stream;
+    await cam.video.play().catch(() => {});
+    await waitForVideo(cam.video);
+    if (!cam) return;
+    showCamRes(track);
+    cam.video.onresize = () => { if (cam) showCamRes(track); };
+    setCamStatus();
+    cancelAnimationFrame(cam.raf);
+    cam.raf = requestAnimationFrame(camLoop);
+  } catch (e) {
+    console.warn('Camera unavailable:', e);
+    if (cam) showCameraProblem(e);
+  }
+}
+// Ask the camera for its largest picture. The modes on offer differ between iPads, so try the most exact request first.
+async function bestCameraMode(track) {
+  const area = s => (s && s.width && s.height ? s.width * s.height : 0);
+  let caps = null;
+  try { caps = track && track.getCapabilities ? track.getCapabilities() : null; } catch (e) { caps = null; }
+  if (!caps || !caps.width || !caps.height || !caps.width.max || !caps.height.max) return;
+  const W = caps.width.max, H = caps.height.max, before = area(track.getSettings());
+  const attempts = [
+    { width: { exact: W }, height: { exact: H } },
+    { width: { exact: H }, height: { exact: W } },
+    { width: { ideal: W }, height: { ideal: H } },
+    { width: { ideal: W } },
+  ];
+  for (const c of attempts) {
+    try {
+      await track.applyConstraints(c);
+      if (area(track.getSettings()) >= before) return;
+    } catch (e) { /* that mode isn't offered here: try the next */ }
+  }
+}
+// Some browsers can take a full still photo from the live camera, often bigger than the video picture. Safari can't yet.
+async function setupPhotoCapture(track) {
+  if (!cam) return;
+  cam.photo = null;
+  if (!window.ImageCapture || !track) return;
+  try {
+    const ic = new ImageCapture(track), pc = await ic.getPhotoCapabilities();
+    if (cam && pc && pc.imageWidth && pc.imageHeight && pc.imageWidth.max && pc.imageHeight.max) cam.photo = { ic, w: pc.imageWidth.max, h: pc.imageHeight.max };
+  } catch (e) { if (cam) cam.photo = null; }
+}
+function showCamRes(track) {
+  const s = track.getSettings ? track.getSettings() : {}, v = cam.video;
+  let w = v.videoWidth || s.width || 0, h = v.videoHeight || s.height || 0;
+  if (cam.photo && cam.photo.w * cam.photo.h > w * h) { w = cam.photo.w; h = cam.photo.h; }
+  const mp = w * h / 1e6;
+  cam.res = { w, h };
+  const label = $('.cam-res', cam.root);
+  if (label) {
+    label.textContent = mp ? `${mp >= 10 ? Math.round(mp) : Math.round(mp * 10) / 10} MP` : '';
+    label.title = mp ? `Camera resolution in use: ${w} × ${h} pixels` : '';
+  }
+}
+function showCameraProblem(e) {
+  const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+  cam.status.textContent = '';
+  cam.view.replaceChildren(el('div', { class: 'cam-problem' },
+    icon('i-camera'),
+    el('h3', { text: denied ? 'Folio isn’t allowed to use the camera' : 'The camera didn’t start' }),
+    el('p', { text: denied
+      ? 'Allow camera access when your iPad asks. If you said no before, you can change it in your iPad’s Settings, under Safari. For now, you can use the Camera app.'
+      : 'Another app may be using the camera. You can use the Camera app instead.' }),
+    el('button', { class: 'btn primary', type: 'button', onclick: () => {
+      const retake = cam && cam.retakeId;
+      closeLiveCamera();
+      if (scan && retake) scan.retake = retake;
+      takePhotoNative();
+    } }, icon('i-camera'), 'Use the Camera app')));
+}
+function camLoop(now) {
+  if (!cam || !cam.stream) return;
+  if (now - cam.tick >= 110 && cam.video.readyState >= 2) {
+    cam.tick = now;
+    let q = null;
+    try { q = detectPageQuad(cam.video); } catch (e) { q = null; }
+    camTrack(q);
+    drawCamOverlay();
+  }
+  cam.raf = requestAnimationFrame(camLoop);
+}
+// A tiny greyscale copy of the picture, to notice when it changes.
+function frameSig(v) {
+  if (!cam.sigCanvas) cam.sigCanvas = scanCanvas(16, 12);
+  const x = cam.sigCanvas.getContext('2d', { willReadFrequently: true });
+  x.drawImage(v, 0, 0, 16, 12);
+  const d = x.getImageData(0, 0, 16, 12).data, out = new Uint8Array(192);
+  for (let i = 0; i < 192; i++) out[i] = (d[i * 4] * 77 + d[i * 4 + 1] * 150 + d[i * 4 + 2] * 29) >> 8;
+  return out;
+}
+function camTrack(q) {
+  if (cam.sig && !cam.armed) {
+    const sig = frameSig(cam.video);
+    let diff = 0;
+    for (let i = 0; i < sig.length; i++) diff += Math.abs(sig[i] - cam.sig[i]);
+    if (diff / sig.length > CAM_CHANGE) cam.armed = true;
+  }
+  if (!q) {
+    cam.steady = 0;
+    if (++cam.lost > 2) { cam.quad = null; cam.armed = true; }
+  } else {
+    cam.lost = 0;
+    const move = cam.quad ? Math.max(...q.map((p, i) => dist2(p, cam.quad[i]))) : 1;
+    cam.steady = move < 0.012 ? cam.steady + 1 : 0;
+    cam.quad = cam.quad && move < 0.05 ? cam.quad.map((p, i) => [(p[0] + q[i][0]) / 2, (p[1] + q[i][1]) / 2]) : q;
+    if (cam.auto && cam.armed && cam.steady >= CAM_STEADY && performance.now() - cam.lastAt > 1200) captureFrame();
+  }
+  setCamStatus();
+}
+function setCamStatus() {
+  if (!cam || !cam.stream) return;
+  const recent = performance.now() - cam.lastAt < 1500;
+  let t;
+  if (cam.retakeId && cam.shots) t = 'Got it.';
+  else if (recent || (cam.auto && !cam.armed && cam.quad)) t = 'Got it. Put the next page down, or tap Done.';
+  else if (!cam.quad) t = cam.auto ? 'Point the camera at a page.' : 'Point the camera at a page, then tap the round button.';
+  else t = cam.auto ? 'Hold still…' : 'Tap the round button to take the photo.';
+  if (cam.status.textContent !== t) cam.status.textContent = t;
+}
+function drawCamOverlay() {
+  const c = cam.overlay, v = cam.video, r = cam.view.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const x = c.getContext('2d');
+  x.clearRect(0, 0, W, H);
+  if (!cam.quad || !v.videoWidth) return;
+  const k = Math.min(W / v.videoWidth, H / v.videoHeight), dw = v.videoWidth * k, dh = v.videoHeight * k, dx = (W - dw) / 2, dy = (H - dh) / 2;
+  const pts = cam.quad.map(([qx, qy]) => [dx + qx * dw, dy + qy * dh]);
+  const taken = !cam.armed && cam.auto, ready = Math.min(1, cam.steady / CAM_STEADY);
+  x.lineJoin = 'round';
+  x.lineWidth = 4 * dpr;
+  x.fillStyle = taken ? 'rgba(34, 197, 94, .22)' : `rgba(79, 140, 255, ${(0.12 + 0.2 * ready).toFixed(3)})`;
+  x.strokeStyle = taken ? '#22c55e' : '#4f8cff';
+  x.beginPath();
+  pts.forEach(([px, py], i) => (i ? x.lineTo(px, py) : x.moveTo(px, py)));
+  x.closePath();
+  x.fill();
+  x.stroke();
+  x.fillStyle = '#ffffff';
+  for (const [px, py] of pts) { x.beginPath(); x.arc(px, py, 6 * dpr, 0, Math.PI * 2); x.fill(); }
+}
+// How sharp the picture is: the spread of the Laplacian (edge contrast) over the page area.
+function frameSharpness(v, quad) {
+  if (!cam.sharpCanvas) cam.sharpCanvas = scanCanvas(1, 1);
+  const k = 360 / Math.max(v.videoWidth, v.videoHeight), w = Math.max(8, Math.round(v.videoWidth * k)), h = Math.max(8, Math.round(v.videoHeight * k));
+  const c = cam.sharpCanvas;
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(v, 0, 0, w, h);
+  const d = x.getImageData(0, 0, w, h).data, g = new Float32Array(w * h);
+  for (let i = 0, j = 0; i < g.length; i++, j += 4) g[i] = d[j] * 0.299 + d[j + 1] * 0.587 + d[j + 2] * 0.114;
+  const xs = quad ? quad.map(p => p[0] * w) : [w * 0.2, w * 0.8], ys = quad ? quad.map(p => p[1] * h) : [h * 0.2, h * 0.8];
+  const x0 = clamp(Math.floor(Math.min(...xs)) + 2, 1, w - 2), x1 = clamp(Math.ceil(Math.max(...xs)) - 2, 1, w - 2);
+  const y0 = clamp(Math.floor(Math.min(...ys)) + 2, 1, h - 2), y1 = clamp(Math.ceil(Math.max(...ys)) - 2, 1, h - 2);
+  let sum = 0, sum2 = 0, cnt = 0;
+  for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) {
+    const i = yy * w + xx, l = 4 * g[i] - g[i - 1] - g[i + 1] - g[i - w] - g[i + w];
+    sum += l; sum2 += l * l; cnt++;
+  }
+  return cnt ? sum2 / cnt - (sum / cnt) ** 2 : 0;
+}
+async function captureFrame() {
+  if (!cam || !cam.stream || cam.taking) return;
+  const c0 = cam, v = c0.video, vw = v.videoWidth, vh = v.videoHeight;
+  if (!vw || !vh) return;
+  c0.taking = true;
+  const hint = c0.quad ? c0.quad.map(p => p.slice()) : null;
+  c0.armed = false;
+  c0.steady = 0;
+  c0.lastAt = performance.now();
+  c0.shots++;
+  c0.flash.classList.remove('go');
+  void c0.flash.offsetWidth;
+  c0.flash.classList.add('go');
+  setCamStatus();
+  let still = null;
+  if (c0.photo && c0.photo.w * c0.photo.h > vw * vh) {
+    try {
+      const blob = await c0.photo.ic.takePhoto({ imageWidth: c0.photo.w, imageHeight: c0.photo.h });
+      still = await createImageBitmap(blob);
+    } catch (e) { still = null; }
+  }
+  // Otherwise take three frames a moment apart and keep the sharpest, so a small shake doesn't blur the page.
+  const frame = still ? scanCanvas(still.width, still.height) : scanCanvas(vw, vh);
+  if (still) {
+    frame.getContext('2d').drawImage(still, 0, 0);
+    if (still.close) still.close();
+  }
+  let best = -1, sharpness = [];
+  for (let i = 0; i < (still ? 0 : 3); i++) {
+    if (i) await new Promise(r => setTimeout(r, 70));
+    if (!c0.stream || v.videoWidth !== vw) break;
+    const sh = frameSharpness(v, hint);
+    sharpness.push(Math.round(sh));
+    if (sh > best) { best = sh; frame.getContext('2d').drawImage(v, 0, 0, vw, vh); }
+  }
+  c0.lastSharpness = sharpness;
+  if (c0.stream) c0.sig = frameSig(v);
+  c0.taking = false;
+  if (!scan) { frame.width = frame.height = 0; return; }
+  const retake = c0.retakeId ? scan.pages.find(p => p.id === c0.retakeId) : null;
+  const pg = retake || { id: uid('s'), status: 'loading', rot: 0, quad: fullQuad() };
+  if (retake) pg.status = 'loading'; else scan.pages.push(pg);
+  updateCamDone();
+  if (retake) closeLiveCamera();
+  else renderScan();
+  const sameShape = Math.abs(frame.width / frame.height - vw / vh) < 0.02;
+  try {
+    await preparePage(pg, frame, sameShape ? hint : null);
+  } catch (e) {
+    console.error(e);
+    if (scan && !retake) scan.pages = scan.pages.filter(p => p !== pg);
+    if (retake) pg.status = 'ready';
+    toast('That photo couldn’t be used. Try again.', 'error');
+  } finally {
+    frame.width = frame.height = 0;
+  }
+  if (!scan) return;
+  updateCamDone();
+  if (retake && scan.editing && scan.editing.id === pg.id) { await closeScanEditor(true); openScanEditor(pg.id); }
+  else renderScan();
+}
+function updateCamDone() {
+  if (!cam || !scan) return;
+  const n = scan.pages.length, last = scan.pages[n - 1];
+  cam.thumb.style.backgroundImage = last && last.thumbUrl ? `url("${last.thumbUrl}")` : '';
+  cam.thumb.replaceChildren(n ? el('b', { text: String(n) }) : '');
+  cam.done.setAttribute('aria-label', n ? `Done, ${n} page${n === 1 ? '' : 's'}` : 'Done');
+}
+function stopCameraStream() {
+  if (!cam) return;
+  cancelAnimationFrame(cam.raf);
+  if (cam.stream) cam.stream.getTracks().forEach(t => t.stop());
+  cam.stream = null;
+}
+function closeLiveCamera(silent) {
+  if (!cam) return;
+  stopCameraStream();
+  try { cam.video.srcObject = null; } catch (e) { /* already gone */ }
+  cam.root.remove();
+  document.removeEventListener('visibilitychange', camVisibility);
+  cam = null;
+  if (!silent && scan) renderScan();
+}
+function camVisibility() {
+  if (!cam) return;
+  if (document.hidden) stopCameraStream();
+  else if (!cam.stream && !cam.view.querySelector('.cam-problem')) startCameraStream();
+}
+
+/* ============================== Reading the text in scans ============================== */
+// The iPad app ships Tesseract (open source, Apache 2.0) with English data in its ocr folder, cached for offline use.
+// Each recognised word goes into the PDF as invisible text placed exactly over the printed word,
+// so Edit text, Find and copying all work on scanned pages, in Folio and in other PDF readers.
+const ocrAvailable = () => !!(S.webapp && window.FOLIO_OCR && window.Worker && window.WebAssembly);
+const OCR_FONTS = new WeakMap();
+
+async function startOcr() {
+  try {
+    if (!window.Tesseract) await loadScript(['ocr/tesseract.min.js']);
+    const base = new URL('ocr/', location.href).href;
+    let onProgress = null;
+    const worker = await Tesseract.createWorker('eng', 1, {
+      workerPath: base + 'worker.min.js', corePath: base, langPath: base,
+      gzip: true, cacheMethod: 'none', workerBlobURL: false,
+      logger: m => { if (onProgress && m.status === 'recognizing text') onProgress(m.progress || 0); },
+      errorHandler: e => console.warn('Text reader:', e),
+    });
+    return {
+      async read(image, progress) {
+        onProgress = progress;
+        try {
+          const { data } = await worker.recognize(image, {}, { blocks: true, text: false });
+          // Keep words and lines, drop per-letter detail to save memory.
+          for (const b of data.blocks || []) for (const p of b.paragraphs || []) for (const l of p.lines || []) for (const wd of l.words || []) { delete wd.symbols; delete wd.choices; }
+          return data.blocks || [];
+        } finally { onProgress = null; }
+      },
+      stop() { Promise.resolve(worker.terminate()).catch(() => {}); },
+    };
+  } catch (e) {
+    console.warn('Text reader unavailable:', e);
+    return null;
+  }
+}
+
+// Helvetica covers the Windows Latin character set. Anything else becomes its plain letter, or a question mark.
+function ocrSafeText(str, chars) {
+  let out = '';
+  for (const ch of String(str || '').normalize('NFC')) {
+    if (chars.has(ch.codePointAt(0))) { out += ch; continue; }
+    const base = ch.normalize('NFD')[0];
+    out += base && chars.has(base.codePointAt(0)) ? base : '?';
+  }
+  return out;
+}
+
+// Greyscale copy of the page image, used to tell bold lines from regular ones.
+function lumaOf(canvas) {
+  const W = canvas.width, H = canvas.height, d = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data, out = new Uint8Array(W * H);
+  for (let i = 0, j = 0; i < out.length; i++, j += 4) out[i] = (d[j] * 77 + d[j + 1] * 150 + d[j + 2] * 29) >> 8;
+  return out;
+}
+// Bold type has thicker strokes. Measure the average width of ink runs across each line, relative to the
+// line's height, and compare it with the page as a whole.
+function boldLines(lines, lum, W, H) {
+  const stroke = new Map();
+  for (const l of lines) {
+    let ink = 0, runs = 0, chars = 0;
+    for (const wd of l.words || []) {
+      if (!wd || !wd.bbox || wd.confidence < 40) continue;
+      chars += (wd.text || '').length;
+      const x0 = clamp(Math.floor(wd.bbox.x0), 0, W), x1 = clamp(Math.ceil(wd.bbox.x1), 0, W), y0 = clamp(Math.floor(wd.bbox.y0), 0, H), y1 = clamp(Math.ceil(wd.bbox.y1), 0, H);
+      for (let y = y0; y < y1; y++) {
+        let prev = false;
+        for (let x = x0, row = y * W; x < x1; x++) {
+          const on = lum[row + x] < 140;
+          if (on) { ink++; if (!prev) runs++; }
+          prev = on;
+        }
+      }
+    }
+    const rowH = (l.rowAttributes && l.rowAttributes.rowHeight) || (l.bbox.y1 - l.bbox.y0);
+    if (chars >= 4 && runs && rowH > 0) stroke.set(l, ink / runs / rowH);
+  }
+  const vals = [...stroke.values()].sort((a, b) => a - b);
+  const bold = new Set();
+  if (vals.length < 3) return bold;
+  const median = vals[vals.length >> 1];
+  for (const [l, v] of stroke) if (median > 0 && v > median * 1.3) bold.add(l);
+  return bold;
+}
+
+function markBoldLines(blocks, lum, W, H) {
+  const lines = [];
+  for (const b of blocks || []) for (const p of b.paragraphs || []) for (const l of p.lines || []) lines.push(l);
+  for (const l of boldLines(lines, lum, W, H)) l.bold = true;
+}
+
+// box: where the page image sits on the PDF page (ox, oy, w, h in points), its size in pixels (imgW, imgH),
+// and optionally its greyscale pixels (lum).
+async function addTextLayer(doc, page, blocks, box) {
+  const L = PDFLib;
+  let f = OCR_FONTS.get(doc);
+  if (!f) {
+    const font = await doc.embedFont(L.StandardFonts.Helvetica);
+    f = { font, chars: new Set(font.getCharacterSet()), bold: null };
+    OCR_FONTS.set(doc, f);
+  }
+  const lines = [];
+  for (const b of blocks || []) for (const p of b.paragraphs || []) for (const l of p.lines || []) lines.push(l);
+  const bold = box.lum ? boldLines(lines, box.lum, box.imgW, box.imgH) : new Set(lines.filter(l => l.bold));
+  if (bold.size && !f.bold) f.bold = await doc.embedFont(L.StandardFonts.HelveticaBold);
+  const { chars } = f;
+  const keys = new Map();
+  const keyFor = fnt => { if (!keys.has(fnt)) keys.set(fnt, page.node.newFontDictionary(fnt.name, fnt.ref)); return keys.get(fnt); };
+  const k = box.w / box.imgW; // points per image pixel
+  const ops = [];
+  let words = 0;
+  for (const l of lines) {
+    const font = bold.has(l) ? f.bold : f.font, key = keyFor(font);
+    const rowH = (l.rowAttributes && l.rowAttributes.rowHeight) || (l.bbox.y1 - l.bbox.y0);
+    const size = r2(clamp(rowH * k, 2, 300));
+    const bl = l.baseline && l.baseline.x1 !== l.baseline.x0 ? l.baseline : { x0: l.bbox.x0, y0: l.bbox.y1, x1: l.bbox.x1, y1: l.bbox.y1 };
+    const slope = clamp((bl.y1 - bl.y0) / (bl.x1 - bl.x0), -0.2, 0.2);
+    for (const wd of l.words || []) {
+      if (!wd || !wd.bbox) continue;
+      const text = ocrSafeText(wd.text, chars).trim();
+      const meaningful = /[\p{L}\p{N}]/u.test(text);
+      if (!text || wd.confidence < (meaningful ? 40 : 75)) continue;
+      const natural = font.widthOfTextAtSize(text, size);
+      const target = (wd.bbox.x1 - wd.bbox.x0) * k;
+      const squeeze = natural > 0 ? clamp(target / natural * 100, 25, 400) : 100;
+      const x = box.ox + wd.bbox.x0 * k, y = box.oy + box.h - (bl.y0 + slope * (wd.bbox.x0 - bl.x0)) * k;
+      ops.push(L.setFontAndSize(key, size), L.setCharacterSqueeze(r2(squeeze)), L.setTextMatrix(1, 0, 0, 1, r2(x), r2(y)), L.showText(font.encodeText(text)));
+      words++;
+    }
+  }
+  if (words) page.pushOperators(L.pushGraphicsState(), L.beginText(), L.setTextRenderingMode(L.TextRenderingMode.Invisible), ...ops, L.endText(), L.popGraphicsState());
+  return words;
 }
 
 /* ============================== Desktop app ============================== */
