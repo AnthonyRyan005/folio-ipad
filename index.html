@@ -266,6 +266,7 @@ select.fld { padding: 0 1px; appearance: auto; }
 .toast { pointer-events: auto; background: #17202c; color: #f2f4f7; border-radius: 10px; padding: 10px 14px; box-shadow: var(--shadow-pop); font-size: 13px; line-height: 1.4; display: flex; gap: 10px; align-items: flex-start; }
 .toast.error { background: #5b130e; }
 .toast.ok { background: #123d29; }
+.toast-btn { margin-left: auto; flex: none; background: transparent; color: inherit; border: 1px solid rgba(255, 255, 255, .55); border-radius: 6px; padding: 4px 12px; font-weight: 600; min-height: 32px; }
 
 /* Web app: install tip for iPad Safari, and no double-tap zoom on controls */
 button, a, label, select { touch-action: manipulation; }
@@ -277,6 +278,87 @@ button, a, label, select { touch-action: manipulation; }
 .install-hint b { font-weight: 600; white-space: nowrap; }
 .install-hint .icon-btn { flex: none; margin-top: -6px; }
 .is-webapp .toasts:has(~ .install-hint) { bottom: calc(52px + 110px + env(safe-area-inset-bottom, 0px)); }
+body:has(.scan) .install-hint { display: none; }
+
+/* Scan to PDF: a sheet laid over the desk, pages pinned out in a grid like prints drying */
+.scan { position: fixed; inset: 0; z-index: 46; background: var(--scrim); display: grid; place-items: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 16px) max(16px, env(safe-area-inset-left, 0px)); }
+.scan-sheet { width: min(1120px, 100%); height: min(880px, 100%); background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: var(--shadow-pop); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+.scan-head { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 20px; border-bottom: 1px solid var(--line); min-width: 0; }
+.scan-head h2 { margin: 0; font-family: var(--f-display); font-weight: 600; font-size: 21px; white-space: nowrap; }
+.scan-head .count { color: var(--muted); font-size: 13px; font-family: var(--f-mono); }
+.scan-head .icon-btn { margin-left: auto; width: 44px; height: 44px; }
+.scan-body { min-height: 0; overflow: auto; background: var(--desk); background-image: radial-gradient(var(--desk-dot) 1px, transparent 1.2px); background-size: 18px 18px; }
+.scan-grid { list-style: none; margin: 0; padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 22px 18px; align-content: start; }
+.scan-card { display: grid; gap: 6px; min-width: 0; align-content: start; }
+.scan-thumb { position: relative; aspect-ratio: 210 / 297; width: 100%; border: 0; padding: 0; border-radius: 4px; background: var(--paper); box-shadow: var(--shadow-page);
+  display: grid; place-items: center; overflow: hidden; color: var(--muted); font-size: 12.5px; cursor: pointer; }
+.scan-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; background: #fff; }
+.scan-thumb:hover { box-shadow: 0 0 0 2px var(--select), var(--shadow-page); }
+.scan-thumb.loading { gap: 10px; align-content: center; justify-items: center; background: var(--panel-2); cursor: default; }
+.scan-thumb.updating img { opacity: .45; }
+.scan-thumb.updating .spinner { position: absolute; }
+.scan-card-bar { display: flex; align-items: center; gap: 0; min-width: 0; }
+.scan-num { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); margin-right: auto; padding-left: 2px; white-space: nowrap; letter-spacing: .02em; }
+.scan-card-bar .icon-btn { width: 32px; height: 36px; }
+.scan-card-bar .icon-btn svg.ic { width: 18px; height: 18px; }
+.scan-add { aspect-ratio: 210 / 297; align-content: center; justify-items: stretch; border: 2px dashed var(--line); border-radius: 6px; padding: 12px; gap: 10px; background: color-mix(in srgb, var(--panel) 70%, transparent); }
+.scan-add p { margin: 0 0 2px; text-align: center; color: var(--muted); font-size: 13px; }
+.scan-add .btn { width: 100%; padding: 0 8px; height: 44px; }
+.scan-empty { min-height: 100%; display: grid; place-items: center; padding: 24px; text-align: center; }
+.scan-empty-in { max-width: 470px; display: grid; gap: 12px; justify-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 28px 24px; box-shadow: var(--shadow-page); }
+.scan-empty-in > svg.ic { width: 52px; height: 52px; color: var(--accent); stroke-width: 1.3; }
+.scan-empty-in h3 { margin: 0; font-family: var(--f-display); font-size: 24px; font-weight: 600; text-wrap: balance; }
+.scan-empty-in p { margin: 0; color: var(--muted); line-height: 1.5; }
+.scan-empty-in .scan-tip { font-size: 13px; }
+.scan-empty-in .row { justify-content: center; margin-top: 6px; }
+.scan-empty-in .btn { height: 44px; padding: 0 18px; }
+.scan-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; padding: 12px 16px 14px 20px; border-top: 1px solid var(--line); min-width: 0; }
+.scan-opts { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; min-width: 0; }
+.scan-opt { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.scan-opt .seg button { height: 34px; padding: 0 11px; }
+.scan-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+.scan-actions { display: flex; gap: 8px; margin-left: auto; }
+.scan-actions .btn { height: 44px; }
+.scan-progress { flex: 1 1 280px; display: grid; gap: 8px; font-size: 13px; color: var(--muted); padding-block: 6px; }
+.scan-pager { display: flex; align-items: center; gap: 6px; font-family: var(--f-mono); font-size: 12.5px; color: var(--muted); }
+.scan-pager .icon-btn { width: 44px; height: 44px; }
+.scan-editor { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 290px; overflow: hidden; }
+.scan-stage { position: relative; min-width: 0; min-height: 0; display: grid; place-items: center; touch-action: none; overflow: hidden; -webkit-user-select: none; user-select: none; }
+.scan-frame { position: relative; box-shadow: var(--shadow-page); }
+.scan-frame img { width: 100%; height: 100%; display: block; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; pointer-events: none; }
+.scan-quad { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.scan-quad polygon { fill: color-mix(in srgb, var(--select) 16%, transparent); stroke: var(--select); stroke-width: 2.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.scan-handle { position: absolute; width: 48px; height: 48px; margin: -24px 0 0 -24px; border: 0; padding: 0; background: transparent; touch-action: none; cursor: grab; display: grid; place-items: center; z-index: 1; }
+.scan-handle::after { content: ""; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 3px solid var(--select); box-shadow: 0 1px 5px rgba(0, 0, 0, .4); }
+.scan-handle:active { cursor: grabbing; }
+.scan-handle:focus-visible { outline: none; }
+.scan-handle:focus-visible::after { box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--select); }
+.scan-loupe { position: absolute; width: 112px; height: 112px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); pointer-events: none; background: #fff; z-index: 2; }
+.scan-side { border-left: 1px solid var(--line); background: var(--panel); padding: 16px; display: grid; align-content: start; gap: 14px; overflow: auto; min-height: 0; }
+.scan-side > p { margin: 0; color: var(--muted); line-height: 1.45; font-size: 13.5px; }
+.scan-result { background: var(--desk); border-radius: 10px; padding: 14px; display: grid; place-items: center; min-height: 150px; }
+.scan-result canvas { max-width: 100%; max-height: 250px; box-shadow: var(--shadow-page); background: #fff; display: block; }
+.scan-side .scan-opt { display: grid; gap: 8px; }
+.scan-side .seg { display: grid; grid-template-columns: 1fr 1fr; }
+.scan-side .seg button { height: 36px; border-left: 0; }
+.scan-side .seg button:nth-child(even) { border-left: 1px solid var(--line); }
+.scan-side .seg button:nth-child(n+3) { border-top: 1px solid var(--line); }
+.scan-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.scan-tools .btn { justify-content: flex-start; padding: 0 10px; height: 42px; font-size: 13.5px; }
+.spinner { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 760px) {
+  .scan { padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); background: var(--panel); }
+  .scan-sheet { width: 100%; height: 100%; border-radius: 0; border: 0; box-shadow: none; }
+  .scan-grid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); padding: 16px; gap: 18px 14px; }
+  .scan-editor { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .scan-side { border-left: 0; border-top: 1px solid var(--line); max-height: 44vh; }
+  .scan-result { display: none; }
+  .scan-actions { width: 100%; }
+  .scan-actions .btn.primary { flex: 1; }
+}
 .dropzone { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 22%, transparent); pointer-events: none; }
 .dropzone div { background: var(--panel); border: 2px dashed var(--accent); border-radius: 16px; padding: 28px 36px; font-family: var(--f-display); font-size: 22px; font-weight: 600; box-shadow: var(--shadow-pop); }
 .boot { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 14px; text-align: center; padding: 24px; }
@@ -460,6 +542,10 @@ select.text-input { padding-right: 6px; }
     <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
     <symbol id="i-fit" viewBox="0 0 24 24"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3.5 8.5A1.5 1.5 0 0 1 5 7h2.4l1.5-2.2h6.2L16.6 7H19a1.5 1.5 0 0 1 1.5 1.5v9.5A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18z"/><circle cx="12" cy="13" r="3.6"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
+    <symbol id="i-corners" viewBox="0 0 24 24"><path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15"/><path d="M8.5 8.5h7v7h-7z"/></symbol>
     <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3.5v11M8 7.5l4-4 4 4"/><path d="M8.5 10H7a1.5 1.5 0 0 0-1.5 1.5v7A1.5 1.5 0 0 0 7 20h10a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 17 10h-1.5"/></symbol>
     <symbol id="i-rect" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1"/></symbol>
     <symbol id="i-ellipse" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.5" ry="6.5"/></symbol>
@@ -500,6 +586,7 @@ select.text-input { padding-right: 6px; }
     <button class="icon-btn" id="btnUndo" aria-label="Undo" title="Undo (Ctrl+Z)" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
     <button class="icon-btn" id="btnRedo" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" disabled><svg class="ic"><use href="#i-redo"/></svg></button>
     <button class="btn" id="btnOpen" title="Open a PDF (Ctrl+O)"><svg class="ic"><use href="#i-open"/></svg><span class="lbl-long">Open</span></button>
+    <button class="btn" id="btnScan" title="Scan paper documents with the camera"><svg class="ic"><use href="#i-camera"/></svg><span class="lbl-long">Scan</span></button>
     <button class="icon-btn" id="btnRecent" aria-label="Recent files" title="Recent files" aria-haspopup="menu" hidden><svg class="ic"><use href="#i-clock"/></svg></button>
     <button class="btn" id="btnPrint" title="Print (Ctrl+P)" hidden><svg class="ic"><use href="#i-print"/></svg><span class="lbl-long">Print</span></button>
     <button class="btn primary" id="btnSave" title="Save a copy as PDF (Ctrl+S)" disabled><svg class="ic"><use href="#i-save"/></svg><span>Save<span class="lbl-long"> PDF</span></span></button>
@@ -861,8 +948,9 @@ function restoreSnapshot(json) {
 }
 
 /* ============================== Toasts and dialogs ============================== */
-function toast(msg, kind = 'info', ms = 4500) {
-  const t = el('div', { class: 'toast ' + kind, role: kind === 'error' ? 'alert' : 'status' }, el('span', { text: msg }));
+function toast(msg, kind = 'info', ms = 4500, action) {
+  const t = el('div', { class: 'toast ' + kind, role: kind === 'error' ? 'alert' : 'status' }, el('span', { text: msg }),
+    action ? el('button', { class: 'toast-btn', type: 'button', text: action.label, onclick: () => { t.remove(); action.run(); } }) : null);
   $('#toasts').append(t);
   setTimeout(() => t.remove(), ms);
   return t;
@@ -1048,6 +1136,7 @@ async function openBytes(bytes, name, isSample = false) {
   S.inkActive = null;
   S.current = 0;
   S.isSample = isSample;
+  S.freshName = false;
   S.fileHandle = null;
   S.dismissed = new Set();
   setDirty(false);
@@ -3339,6 +3428,7 @@ function wireUI() {
     $('#dropzone').hidden = true;
     const f = e.dataTransfer.files[0];
     if (!f) return;
+    if (scan) { if (!scan.busy) scanFilesChosen([...e.dataTransfer.files]); return; }
     const item = Array.from(e.dataTransfer.items || []).find(i => i.kind === 'file');
     const handle = S.desktop && item && item.getAsFileSystemHandle ? item.getAsFileSystemHandle().catch(() => null) : null;
     if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) openFile(f, handle);
@@ -3348,6 +3438,7 @@ function wireUI() {
   document.addEventListener('paste', e => {
     if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
     const item = Array.from((e.clipboardData && e.clipboardData.items) || []).find(i => i.type.startsWith('image/'));
+    if (item && scan) { e.preventDefault(); if (!scan.busy) scanFilesChosen([item.getAsFile()]); return; }
     if (item) { e.preventDefault(); insertImageFile(item.getAsFile()); return; }
     if (S.clip && pasteClip()) e.preventDefault();
   });
@@ -3358,6 +3449,7 @@ function onKey(e) {
   const k = e.key.toLowerCase();
   const mod = e.ctrlKey || e.metaKey;
   if (modalState) { if (e.key === 'Escape' && modalState.dismissible) { e.preventDefault(); closeModal(); } return; }
+  if (scan) { scanKey(e); return; }
   if (mod && k === 's') { e.preventDefault(); openSaveDialog(); return; }
   if (mod && k === 'o') { e.preventDefault(); pickPdfToOpen(); return; }
   if (mod && k === 'f') { e.preventDefault(); openFind(); return; }
@@ -3463,6 +3555,7 @@ function openPageTools(anchor) {
     { label: 'Blank page', icon: 'i-blank', run: () => insertBlank(S.current) },
     { label: 'Pages from another PDF…', icon: 'i-addpdf', run: () => $('#fileAdd').click() },
     { label: 'Image as a new page…', icon: 'i-imagepage', run: pickImagePage },
+    { label: 'Scanned pages…', icon: 'i-camera', run: () => openScan({ insertAfter: S.current }) },
     '-',
     { label: 'Extract pages to a new PDF…', icon: 'i-extract', run: openExtract },
   ], { label: 'Page tools' });
@@ -3852,6 +3945,797 @@ function openSignature() {
   requestAnimationFrame(redraw);
 }
 
+/* ============================== Scan to PDF ============================== */
+// Photos of paper documents become straightened, cleaned-up PDF pages, all on the device.
+// Photos are kept as JPEG blobs between steps, so a long scan doesn't run an iPad out of memory.
+const SCAN = { workMax: 2600, prevMax: 1100, outMax: 2480, thumbMax: 360, quality: 0.85 };
+const SCAN_LOOKS = [['original', 'Original'], ['enhanced', 'Enhanced'], ['grey', 'Greyscale'], ['bw', 'Black and white']];
+const SCAN_SIZES = [['a4', 'A4'], ['letter', 'Letter'], ['photo', 'Same as photo']];
+const SCAN_PAPER = { a4: [595.28, 841.89], letter: [612, 792] };
+const CORNER_NAMES = ['Top-left corner', 'Top-right corner', 'Bottom-right corner', 'Bottom-left corner'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+let scan = null;
+
+const scanTouch = () => (typeof isAppleTouch === 'function' && isAppleTouch()) || !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+const fullQuad = () => [[0, 0], [1, 0], [1, 1], [0, 1]];
+const isFullQuad = q => q.every(([x, y], i) => Math.abs(x - fullQuad()[i][0]) < 0.006 && Math.abs(y - fullQuad()[i][1]) < 0.006);
+const dist2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const scanYield = () => new Promise(r => setTimeout(r, 0));
+function scanCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function canvasBlob(c, q) { return new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error('The image couldn’t be encoded.'))), 'image/jpeg', q)); }
+function scanPrefs(patch) {
+  try {
+    const cur = JSON.parse(localStorage.getItem('folio.scan') || '{}');
+    if (patch) localStorage.setItem('folio.scan', JSON.stringify({ ...cur, ...patch }));
+    return cur;
+  } catch (e) { return {}; }
+}
+
+/* ---------- Opening and closing ---------- */
+function initScan() {
+  const b = $('#btnScan');
+  if (!b) return;
+  b.title = scanTouch() ? 'Scan paper documents with the camera' : 'Turn photos of documents into a PDF';
+  b.addEventListener('click', () => openScan());
+}
+function scanInputs() {
+  let cam = $('#scanCamera'), lib = $('#scanPhotos');
+  if (!cam) {
+    cam = el('input', { type: 'file', id: 'scanCamera', accept: 'image/*', capture: 'environment', hidden: true });
+    lib = el('input', { type: 'file', id: 'scanPhotos', accept: 'image/*', multiple: true, hidden: true });
+    const take = inp => () => {
+      const files = [...inp.files];
+      inp.value = '';
+      if (scan && files.length) scanFilesChosen(files);
+    };
+    cam.addEventListener('change', take(cam));
+    lib.addEventListener('change', take(lib));
+    document.body.append(cam, lib);
+  }
+  return { cam, lib };
+}
+function openScan({ insertAfter = null } = {}) {
+  if (scan) return;
+  if (S.editing) endEdit();
+  closeMenu();
+  const prefs = scanPrefs();
+  const canAdd = S.pages.length > 0 && !S.isSample;
+  scan = {
+    pages: [], look: SCAN_LOOKS.some(l => l[0] === prefs.look) ? prefs.look : 'enhanced',
+    size: SCAN_SIZES.some(s => s[0] === prefs.size) ? prefs.size : 'a4',
+    target: insertAfter != null && canAdd ? 'insert' : 'new', insertAfter, canAdd,
+    editing: null, busy: false, retake: null, gen: 0, ro: null, root: null, prevFocus: document.activeElement,
+  };
+  scanInputs();
+  scan.root = el('div', { class: 'scan', id: 'scanSheet' },
+    el('div', { class: 'scan-sheet', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'scanTitle' }));
+  scan.root.addEventListener('pointerdown', e => { if (e.target === scan.root) requestCloseScan(); });
+  document.body.append(scan.root);
+  renderScan();
+  setTimeout(() => $('.scan-empty .btn.primary, .scan-empty .btn', scan.root)?.focus?.(), 40);
+}
+async function requestCloseScan() {
+  if (!scan || scan.busy) return;
+  if (scan.editing) { closeScanEditor(); return; }
+  if (scan.pages.length) {
+    const n = scan.pages.length;
+    const ok = await confirmBox('Discard these scans?', `You have ${n} scanned page${n === 1 ? '' : 's'} that ${n === 1 ? 'isn’t' : 'aren’t'} in a PDF yet.`, 'Discard', 'primary');
+    if (!ok) return;
+  }
+  closeScan();
+}
+function closeScan() {
+  if (!scan) return;
+  if (scan.ro) scan.ro.disconnect();
+  if (scan.editing) URL.revokeObjectURL(scan.editing.url);
+  for (const p of scan.pages) if (p.thumbUrl) URL.revokeObjectURL(p.thumbUrl);
+  scan.root.remove();
+  const prev = scan.prevFocus;
+  scan = null;
+  try { prev?.focus?.({ preventScroll: true }); } catch (e) { /* gone */ }
+}
+function scanKey(e) {
+  if (e.key === 'Escape') { e.preventDefault(); requestCloseScan(); }
+}
+
+/* ---------- Adding photos ---------- */
+function takePhoto() { scanInputs().cam.click(); }
+function choosePhotos() { scanInputs().lib.click(); }
+function scanFilesChosen(files) {
+  const imgs = files.filter(f => f.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif|gif|bmp)$/i.test(f.name));
+  if (!imgs.length) { toast('Choose photos or images of your pages.', 'error'); return; }
+  if (scan.retake) {
+    const pg = scan.pages.find(p => p.id === scan.retake);
+    scan.retake = null;
+    if (pg) { replaceScanPhoto(pg, imgs[0]); return; }
+  }
+  addScanPhotos(imgs);
+}
+async function addScanPhotos(files) {
+  const added = files.map(f => ({ id: uid('s'), status: 'loading', rot: 0, quad: fullQuad(), file: f }));
+  scan.pages.push(...added);
+  renderScan();
+  for (const pg of added) {
+    try {
+      await importScanPhoto(pg.file, pg);
+    } catch (e) {
+      console.error(e);
+      if (!scan) return;
+      scan.pages = scan.pages.filter(p => p !== pg);
+      toast(`“${pg.file.name || 'That photo'}” couldn’t be read. Try a JPEG or PNG photo.`, 'error', 6000);
+    }
+    delete pg.file;
+    if (!scan) return;
+    renderScan();
+  }
+}
+async function replaceScanPhoto(pg, file) {
+  const old = { ...pg };
+  pg.status = 'loading';
+  renderScan();
+  try {
+    await importScanPhoto(file, pg);
+  } catch (e) {
+    Object.assign(pg, old, { status: 'ready' });
+    toast('That photo couldn’t be read. Try again.', 'error');
+  }
+  if (!scan) return;
+  if (scan.editing && scan.editing.id === pg.id) { await closeScanEditor(true); openScanEditor(pg.id); return; }
+  renderScan();
+}
+function loadPhoto(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => res({ img, url });
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('decode')); };
+    img.src = url;
+  });
+}
+function drawScaled(src, max) {
+  const sw = src.naturalWidth || src.width, sh = src.naturalHeight || src.height;
+  const k = Math.min(1, max / Math.max(sw, sh));
+  const c = scanCanvas(Math.max(1, Math.round(sw * k)), Math.max(1, Math.round(sh * k)));
+  const x = c.getContext('2d');
+  x.imageSmoothingEnabled = true;
+  x.imageSmoothingQuality = 'high';
+  x.drawImage(src, 0, 0, c.width, c.height);
+  return c;
+}
+async function importScanPhoto(file, pg) {
+  const { img, url } = await loadPhoto(file);
+  let work;
+  try {
+    if (!img.naturalWidth || !img.naturalHeight) throw new Error('empty');
+    work = drawScaled(img, SCAN.workMax);
+  } finally { URL.revokeObjectURL(url); }
+  const prev = drawScaled(work, SCAN.prevMax);
+  pg.work = await canvasBlob(work, 0.92);
+  pg.ww = work.width; pg.wh = work.height;
+  work.width = work.height = 0;
+  pg.prev = await canvasBlob(prev, 0.9);
+  pg.pw = prev.width; pg.ph = prev.height;
+  const found = detectPageQuad(prev);
+  pg.quad = found ? found.map(c => c.slice()) : fullQuad();
+  pg.found = found;
+  pg.rot = 0;
+  prev.width = prev.height = 0;
+  await refreshScanThumb(pg);
+  pg.status = 'ready';
+}
+
+/* ---------- Finding the page in a photo ---------- */
+// Paper is usually brighter than the desk under it. Split the photo into light and dark (Otsu's method),
+// close the gaps that text leaves, take the bright region under the centre, and use its extreme points as corners.
+function detectPageQuad(src) {
+  const s = 300 / Math.max(src.width, src.height);
+  const w = Math.max(24, Math.round(src.width * s)), h = Math.max(24, Math.round(src.height * s)), n = w * h;
+  const c = scanCanvas(w, h), x = c.getContext('2d', { willReadFrequently: true });
+  x.imageSmoothingQuality = 'high';
+  x.drawImage(src, 0, 0, w, h);
+  const d = x.getImageData(0, 0, w, h).data;
+  let g = new Float32Array(n);
+  for (let i = 0, j = 0; i < n; i++, j += 4) g[i] = 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2];
+  g = boxBlur(boxBlur(g, w, h, 2), w, h, 2);
+  const hist = new Float64Array(256);
+  for (let i = 0; i < n; i++) hist[Math.min(255, g[i] | 0)]++;
+  let total = 0;
+  for (let i = 0; i < 256; i++) total += i * hist[i];
+  let sumB = 0, wB = 0, best = -1, t = 128;
+  for (let i = 0; i < 256; i++) {
+    wB += hist[i];
+    if (!wB) continue;
+    const wF = n - wB;
+    if (!wF) break;
+    sumB += i * hist[i];
+    const mB = sumB / wB, mF = (total - sumB) / wF, between = wB * wF * (mB - mF) * (mB - mF);
+    if (between > best) { best = between; t = i; }
+  }
+  let m = new Uint8Array(n);
+  for (let i = 0; i < n; i++) m[i] = g[i] > t ? 1 : 0;
+  m = morph(morph(m, w, h, 3, true), w, h, 3, false);
+  m = morph(morph(m, w, h, 2, false), w, h, 2, true);
+  const lab = new Int32Array(n).fill(-1), queue = new Int32Array(n), regions = [];
+  for (let i = 0; i < n; i++) {
+    if (!m[i] || lab[i] >= 0) continue;
+    const id = regions.length, r = { area: 0, sMin: Infinity, sMax: -Infinity, dMin: Infinity, dMax: -Infinity, tl: i, tr: i, br: i, bl: i };
+    let head = 0, tail = 0;
+    queue[tail++] = i;
+    lab[i] = id;
+    while (head < tail) {
+      const p = queue[head++], px = p % w, py = (p - px) / w, sm = px + py, df = px - py;
+      r.area++;
+      if (sm < r.sMin) { r.sMin = sm; r.tl = p; }
+      if (sm > r.sMax) { r.sMax = sm; r.br = p; }
+      if (df > r.dMax) { r.dMax = df; r.tr = p; }
+      if (df < r.dMin) { r.dMin = df; r.bl = p; }
+      if (px > 0 && m[p - 1] && lab[p - 1] < 0) { lab[p - 1] = id; queue[tail++] = p - 1; }
+      if (px < w - 1 && m[p + 1] && lab[p + 1] < 0) { lab[p + 1] = id; queue[tail++] = p + 1; }
+      if (py > 0 && m[p - w] && lab[p - w] < 0) { lab[p - w] = id; queue[tail++] = p - w; }
+      if (py < h - 1 && m[p + w] && lab[p + w] < 0) { lab[p + w] = id; queue[tail++] = p + w; }
+    }
+    regions.push(r);
+  }
+  if (!regions.length) return null;
+  const mid = lab[(h >> 1) * w + (w >> 1)];
+  const pick = mid >= 0 && regions[mid].area > 0.1 * n ? regions[mid] : regions.reduce((a, b) => (b.area > a.area ? b : a));
+  if (pick.area < 0.1 * n || pick.area > 0.96 * n) return null;
+  const pt = p => [((p % w) + 0.5) / w, (Math.floor(p / w) + 0.5) / h];
+  const quad = [pt(pick.tl), pt(pick.tr), pt(pick.br), pt(pick.bl)];
+  if (quadArea(quad) < 0.1 || !isConvex(quad)) return null;
+  // Pull each corner half a pixel outwards so the page edge isn't trimmed.
+  return quad.map(([qx, qy], i) => [clamp(qx + (i === 1 || i === 2 ? 0.5 : -0.5) / w, 0, 1), clamp(qy + (i >= 2 ? 0.5 : -0.5) / h, 0, 1)]);
+}
+function quadArea(q) {
+  let a = 0;
+  for (let i = 0; i < 4; i++) { const [x1, y1] = q[i], [x2, y2] = q[(i + 1) % 4]; a += x1 * y2 - x2 * y1; }
+  return Math.abs(a) / 2;
+}
+function isConvex(q) {
+  let sign = 0;
+  for (let i = 0; i < 4; i++) {
+    const [ax, ay] = q[i], [bx, by] = q[(i + 1) % 4], [cx, cy] = q[(i + 2) % 4];
+    const cr = (bx - ax) * (cy - by) - (by - ay) * (cx - bx);
+    if (Math.abs(cr) < 1e-9) return false;
+    if (!sign) sign = Math.sign(cr); else if (Math.sign(cr) !== sign) return false;
+  }
+  return true;
+}
+function boxBlur(src, w, h, r) {
+  const tmp = new Float32Array(src.length), out = new Float32Array(src.length);
+  for (let y = 0; y < h; y++) {
+    const o = y * w;
+    let s = 0, lo = 0, hi = -1;
+    for (let x = 0; x < w; x++) {
+      const nhi = Math.min(w - 1, x + r), nlo = Math.max(0, x - r);
+      while (hi < nhi) s += src[o + ++hi];
+      while (lo < nlo) s -= src[o + lo++];
+      tmp[o + x] = s / (hi - lo + 1);
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    let s = 0, lo = 0, hi = -1;
+    for (let y = 0; y < h; y++) {
+      const nhi = Math.min(h - 1, y + r), nlo = Math.max(0, y - r);
+      while (hi < nhi) s += tmp[++hi * w + x];
+      while (lo < nlo) s -= tmp[lo++ * w + x];
+      out[y * w + x] = s / (hi - lo + 1);
+    }
+  }
+  return out;
+}
+// Binary dilate (any pixel set) or erode (all pixels set) with a square window.
+function morph(m, w, h, r, dilate) {
+  const a = new Uint8Array(m.length), b = new Uint8Array(m.length);
+  for (let y = 0; y < h; y++) {
+    const o = y * w;
+    let s = 0, lo = 0, hi = -1;
+    for (let x = 0; x < w; x++) {
+      const nhi = Math.min(w - 1, x + r), nlo = Math.max(0, x - r);
+      while (hi < nhi) s += m[o + ++hi];
+      while (lo < nlo) s -= m[o + lo++];
+      a[o + x] = dilate ? (s > 0 ? 1 : 0) : (s === hi - lo + 1 ? 1 : 0);
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    let s = 0, lo = 0, hi = -1;
+    for (let y = 0; y < h; y++) {
+      const nhi = Math.min(h - 1, y + r), nlo = Math.max(0, y - r);
+      while (hi < nhi) s += a[++hi * w + x];
+      while (lo < nlo) s -= a[lo++ * w + x];
+      b[y * w + x] = dilate ? (s > 0 ? 1 : 0) : (s === hi - lo + 1 ? 1 : 0);
+    }
+  }
+  return b;
+}
+
+/* ---------- Straightening and cleaning up ---------- */
+function solve8(A, b) {
+  const M = A.map((row, i) => [...row, b[i]]);
+  for (let c = 0; c < 8; c++) {
+    let p = c;
+    for (let r = c + 1; r < 8; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]];
+    const dv = M[c][c];
+    if (Math.abs(dv) < 1e-12) return null;
+    for (let r = 0; r < 8; r++) {
+      if (r === c) continue;
+      const f = M[r][c] / dv;
+      if (f) for (let k = c; k <= 8; k++) M[r][k] -= f * M[c][k];
+    }
+  }
+  return M.map((row, i) => row[8] / row[i]);
+}
+// Map the output rectangle back onto the page's four corners in the photo, sampling with bilinear filtering.
+function warpImage(src, q, W, H) {
+  const dst = [[0, 0], [W, 0], [W, H], [0, H]], A = [], b = [];
+  for (let i = 0; i < 4; i++) {
+    const [x, y] = dst[i], [u, v] = q[i];
+    A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
+    A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
+  }
+  const hm = solve8(A, b) || [src.width / W, 0, 0, 0, src.height / H, 0, 0, 0];
+  const sw = src.width, sh = src.height, s = src.data, out = new ImageData(W, H), o = out.data, maxX = sw - 1, maxY = sh - 1;
+  let j = 0;
+  for (let y = 0; y < H; y++) {
+    const yy = y + 0.5;
+    let nx = hm[0] * 0.5 + hm[1] * yy + hm[2], ny = hm[3] * 0.5 + hm[4] * yy + hm[5], dz = hm[6] * 0.5 + hm[7] * yy + 1;
+    for (let x = 0; x < W; x++, j += 4) {
+      let u = nx / dz - 0.5, v = ny / dz - 0.5;
+      nx += hm[0]; ny += hm[3]; dz += hm[6];
+      if (u < 0) u = 0; else if (u > maxX) u = maxX;
+      if (v < 0) v = 0; else if (v > maxY) v = maxY;
+      const x0 = u | 0, y0 = v | 0, x1 = x0 < maxX ? x0 + 1 : x0, y1 = y0 < maxY ? y0 + 1 : y0, fx = u - x0, fy = v - y0;
+      const i00 = (y0 * sw + x0) << 2, i10 = (y0 * sw + x1) << 2, i01 = (y1 * sw + x0) << 2, i11 = (y1 * sw + x1) << 2;
+      const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
+      o[j] = s[i00] * w00 + s[i10] * w10 + s[i01] * w01 + s[i11] * w11;
+      o[j + 1] = s[i00 + 1] * w00 + s[i10 + 1] * w10 + s[i01 + 1] * w01 + s[i11 + 1] * w11;
+      o[j + 2] = s[i00 + 2] * w00 + s[i10 + 2] * w10 + s[i01 + 2] * w01 + s[i11 + 2] * w11;
+      o[j + 3] = 255;
+    }
+  }
+  return out;
+}
+// Tone curve: anything brighter than 236 becomes white paper, anything darker than 16 becomes black ink.
+const SCAN_LUT = (() => { const t = new Uint8ClampedArray(512); for (let i = 0; i < 512; i++) t[i] = 255 * Math.pow(clamp((i - 16) / 220, 0, 1), 1.2); return t; })();
+// Even out the lighting: estimate how bright the paper is in each part of the page, then scale it to white.
+function applyLook(img, look) {
+  if (look === 'original') return;
+  const { width: w, height: h, data: d } = img, n = w * h;
+  const B = Math.max(12, Math.round(Math.max(w, h) / 40)), bw = Math.ceil(w / B), bh = Math.ceil(h / B), nb = bw * bh;
+  const hist = new Uint32Array(nb * 64), lum = new Uint8Array(n);
+  for (let y = 0, i = 0, j = 0; y < h; y++) {
+    const row = ((y / B) | 0) * bw;
+    for (let x = 0; x < w; x++, i++, j += 4) {
+      const L = (d[j] * 77 + d[j + 1] * 150 + d[j + 2] * 29) >> 8;
+      lum[i] = L;
+      hist[(row + ((x / B) | 0)) * 64 + (L >> 2)]++;
+    }
+  }
+  let bg = new Float32Array(nb);
+  for (let k = 0; k < nb; k++) {
+    let tot = 0;
+    for (let i = 0; i < 64; i++) tot += hist[k * 64 + i];
+    let acc = 0, v = 255;
+    const lim = tot * 0.9;
+    for (let i = 0; i < 64; i++) { acc += hist[k * 64 + i]; if (acc >= lim) { v = i * 4 + 2; break; } }
+    bg[k] = v;
+  }
+  // Blocks full of ink or pictures borrow the brightness of their neighbours.
+  const mx = new Float32Array(nb);
+  for (let by = 0; by < bh; by++) for (let bx = 0; bx < bw; bx++) {
+    let v = 0;
+    for (let yy = Math.max(0, by - 1); yy <= Math.min(bh - 1, by + 1); yy++) for (let xx = Math.max(0, bx - 1); xx <= Math.min(bw - 1, bx + 1); xx++) v = Math.max(v, bg[yy * bw + xx]);
+    mx[by * bw + bx] = v;
+  }
+  bg = boxBlur(mx, bw, bh, 1);
+  const cx0 = new Int32Array(w), cx1 = new Int32Array(w), cfx = new Float32Array(w);
+  for (let x = 0; x < w; x++) { const g = clamp((x + 0.5) / B - 0.5, 0, bw - 1); cx0[x] = g | 0; cx1[x] = Math.min(bw - 1, cx0[x] + 1); cfx[x] = g - cx0[x]; }
+  const cap = look === 'enhanced' ? 1.9 : 2.4;
+  for (let y = 0, i = 0, j = 0; y < h; y++) {
+    const gy = clamp((y + 0.5) / B - 0.5, 0, bh - 1), y0 = gy | 0, y1 = Math.min(bh - 1, y0 + 1), fy = gy - y0, r0 = y0 * bw, r1 = y1 * bw;
+    for (let x = 0; x < w; x++, i++, j += 4) {
+      const a = bg[r0 + cx0[x]] + (bg[r0 + cx1[x]] - bg[r0 + cx0[x]]) * cfx[x];
+      const c = bg[r1 + cx0[x]] + (bg[r1 + cx1[x]] - bg[r1 + cx0[x]]) * cfx[x];
+      const k = Math.min(cap, 250 / Math.max(48, a + (c - a) * fy));
+      if (look === 'enhanced') {
+        d[j] = SCAN_LUT[Math.min(511, (d[j] * k) | 0)];
+        d[j + 1] = SCAN_LUT[Math.min(511, (d[j + 1] * k) | 0)];
+        d[j + 2] = SCAN_LUT[Math.min(511, (d[j + 2] * k) | 0)];
+      } else {
+        const v = lum[i] * k;
+        const out = look === 'grey' ? SCAN_LUT[Math.min(511, v | 0)] : v >= 200 ? 255 : v <= 140 ? 0 : ((v - 140) * 4.25) | 0;
+        d[j] = d[j + 1] = d[j + 2] = out;
+      }
+    }
+  }
+}
+async function decodeBlob(blob) {
+  if (window.createImageBitmap) { try { return await createImageBitmap(blob); } catch (e) { /* fall back to an image element */ } }
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    return img;
+  } finally { setTimeout(() => URL.revokeObjectURL(url), 0); }
+}
+// Draw one scanned page: straighten, clean up, rotate. from = 'prev' (fast, for previews) or 'work' (full quality).
+async function renderScanPage(pg, { from = 'prev', maxSide, look, size }) {
+  const blob = from === 'work' ? pg.work : pg.prev, sw = from === 'work' ? pg.ww : pg.pw, sh = from === 'work' ? pg.wh : pg.ph;
+  const bmp = await decodeBlob(blob);
+  const c0 = scanCanvas(sw, sh), x0 = c0.getContext('2d', { willReadFrequently: true });
+  x0.drawImage(bmp, 0, 0, sw, sh);
+  if (bmp.close) bmp.close();
+  const src = x0.getImageData(0, 0, sw, sh);
+  c0.width = c0.height = 0;
+  const q = pg.quad.map(([x, y]) => [x * sw, y * sh]);
+  let W = Math.max(dist2(q[0], q[1]), dist2(q[3], q[2])), H = Math.max(dist2(q[0], q[3]), dist2(q[1], q[2]));
+  // A photo taken at an angle makes the page look shorter than it is. Snap to the paper shape when it's close.
+  if (SCAN_PAPER[size] && !isFullQuad(pg.quad)) {
+    const ratio = SCAN_PAPER[size][1] / SCAN_PAPER[size][0], long = Math.max(W, H), short = Math.min(W, H);
+    if (Math.abs(long / short / ratio - 1) < 0.15) { if (H >= W) W = H / ratio; else H = W / ratio; }
+  }
+  const k = Math.min(1, maxSide / Math.max(W, H));
+  W = Math.max(1, Math.round(W * k));
+  H = Math.max(1, Math.round(H * k));
+  const out = warpImage(src, q, W, H);
+  applyLook(out, look);
+  const c1 = scanCanvas(W, H);
+  c1.getContext('2d').putImageData(out, 0, 0);
+  const r = ((pg.rot % 360) + 360) % 360;
+  if (!r) return c1;
+  const c2 = scanCanvas(r % 180 ? H : W, r % 180 ? W : H), x2 = c2.getContext('2d');
+  x2.translate(c2.width / 2, c2.height / 2);
+  x2.rotate(r * Math.PI / 180);
+  x2.drawImage(c1, -W / 2, -H / 2);
+  c1.width = c1.height = 0;
+  return c2;
+}
+async function refreshScanThumb(pg) {
+  const c = await renderScanPage(pg, { from: 'prev', maxSide: SCAN.thumbMax, look: scan ? scan.look : 'enhanced', size: scan ? scan.size : 'a4' });
+  const blob = await canvasBlob(c, 0.82);
+  c.width = c.height = 0;
+  if (pg.thumbUrl) URL.revokeObjectURL(pg.thumbUrl);
+  pg.thumbUrl = URL.createObjectURL(blob);
+}
+async function refreshAllThumbs() {
+  const gen = ++scan.gen;
+  for (const pg of scan.pages) {
+    if (!scan || scan.gen !== gen) return;
+    if (pg.status !== 'ready') continue;
+    pg.status = 'updating';
+    if (!scan.editing) renderScan();
+    try { await refreshScanThumb(pg); } catch (e) { console.error(e); }
+    if (!scan) return;
+    pg.status = 'ready';
+    if (!scan.editing) renderScan();
+  }
+}
+
+/* ---------- Making the PDF ---------- */
+function scanFileName() {
+  const d = new Date(), p2 = v => String(v).padStart(2, '0');
+  return `Scan ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()} ${p2(d.getHours())}.${p2(d.getMinutes())}.pdf`;
+}
+function scanPagePoints(w, h, size) {
+  if (SCAN_PAPER[size]) { const [a, b] = SCAN_PAPER[size]; return w > h ? [b, a] : [a, b]; }
+  const long = 841.89;
+  return w >= h ? [long, r2(long * h / w)] : [r2(long * w / h), long];
+}
+async function buildScanPdf(progress) {
+  const L = PDFLib, name = scanFileName(), pages = scan.pages.slice();
+  const doc = await L.PDFDocument.create();
+  doc.setTitle(name.replace(/\.pdf$/, ''));
+  doc.setCreator('Folio PDF Editor');
+  doc.setProducer('Folio PDF Editor');
+  for (let i = 0; i < pages.length; i++) {
+    progress(i / pages.length, `Making page ${i + 1} of ${pages.length}…`);
+    await scanYield();
+    const c = await renderScanPage(pages[i], { from: 'work', maxSide: SCAN.outMax, look: scan.look, size: scan.size });
+    const blob = await canvasBlob(c, SCAN.quality);
+    c.width = c.height = 0;
+    const img = await doc.embedJpg(new Uint8Array(await blob.arrayBuffer()));
+    const [pw, ph] = scanPagePoints(img.width, img.height, scan.size);
+    const page = doc.addPage([pw, ph]);
+    const k = Math.min(pw / img.width, ph / img.height), w = img.width * k, h = img.height * k;
+    page.drawImage(img, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
+  }
+  progress(1, 'Opening your PDF…');
+  return { bytes: await doc.save(), name };
+}
+async function finishScan() {
+  if (!scan || scan.busy || !scan.pages.length || scan.pages.some(p => p.status !== 'ready')) return;
+  scan.busy = true;
+  renderScan();
+  const bar = $('.scan-progress i', scan.root), msg = $('.scan-progress span', scan.root);
+  const progress = (f, t) => { if (bar) bar.style.width = Math.round(f * 100) + '%'; if (msg) msg.textContent = t; };
+  try {
+    const { bytes, name } = await buildScanPdf(progress);
+    const file = new File([bytes], name, { type: 'application/pdf' });
+    const n = scan.pages.length;
+    if (scan.target === 'new') {
+      scan.busy = false;
+      const ok = await openFile(file);
+      if (!ok) { if (scan) renderScan(); return; }
+      S.freshName = true;
+      setDirty(true);
+      closeScan();
+      toast(`Your scan is ready: ${n} page${n === 1 ? '' : 's'}. ${scanTouch() ? 'Tap' : 'Choose'} Save PDF to keep it.`, 'ok', 7000);
+    } else {
+      const after = scan.target === 'insert' ? clamp(scan.insertAfter, -1, S.pages.length - 1) : S.pages.length - 1;
+      scan.busy = false;
+      closeScan();
+      await insertPdfFile(file, after);
+    }
+  } catch (e) {
+    console.error(e);
+    if (scan) { scan.busy = false; renderScan(); }
+    toast('The PDF couldn’t be made. ' + (e && e.message ? e.message : 'Try fewer pages at a time.'), 'error', 8000);
+  }
+}
+
+/* ---------- Page list ---------- */
+function moveScanPage(i, d) {
+  const j = i + d;
+  if (j < 0 || j >= scan.pages.length) return;
+  const [p] = scan.pages.splice(i, 1);
+  scan.pages.splice(j, 0, p);
+  renderScan();
+  $(`.scan-card[data-id="${p.id}"] [data-act="${d < 0 ? 'left' : 'right'}"]`, scan.root)?.focus?.();
+}
+async function rotateScanPage(pg, d) {
+  pg.rot = ((pg.rot + d) % 360 + 360) % 360;
+  pg.status = 'updating';
+  renderScan();
+  try { await refreshScanThumb(pg); } catch (e) { console.error(e); }
+  if (!scan) return;
+  pg.status = 'ready';
+  renderScan();
+}
+function removeScanPage(pg) {
+  if (pg.thumbUrl) URL.revokeObjectURL(pg.thumbUrl);
+  scan.pages = scan.pages.filter(p => p !== pg);
+  renderScan();
+}
+function scanIconBtn(ic, label, onclick, disabled, act) {
+  return el('button', { class: 'icon-btn', type: 'button', 'aria-label': label, title: label, disabled: !!disabled, 'data-act': act, onclick }, icon(ic));
+}
+function scanAddButtons(big) {
+  const touch = scanTouch();
+  return [
+    touch ? el('button', { class: 'btn primary', type: 'button', onclick: takePhoto }, icon('i-camera'), big ? 'Take photo' : 'Take photo') : null,
+    el('button', { class: 'btn' + (touch ? '' : ' primary'), type: 'button', onclick: choosePhotos }, icon('i-image'), touch ? 'Choose photos' : 'Choose images'),
+  ];
+}
+function renderScan() {
+  if (!scan) return;
+  if (scan.ro) { scan.ro.disconnect(); scan.ro = null; }
+  const sheet = $('.scan-sheet', scan.root), n = scan.pages.length;
+  const head = el('div', { class: 'scan-head' },
+    el('h2', { id: 'scanTitle', text: scan.target === 'new' ? 'Scan to PDF' : 'Add scanned pages' }),
+    n ? el('span', { class: 'count', text: `${n} page${n === 1 ? '' : 's'}` }) : null,
+    el('button', { class: 'icon-btn', type: 'button', 'aria-label': scan.editing ? 'Back to all pages' : 'Close', title: scan.editing ? 'Back to all pages' : 'Close', disabled: scan.busy, onclick: requestCloseScan }, icon('i-close')));
+  let body, foot;
+  if (scan.editing) [body, foot] = scanEditorView();
+  else {
+    if (!n) {
+      const touch = scanTouch();
+      body = el('div', { class: 'scan-body' }, el('div', { class: 'scan-empty' }, el('div', { class: 'scan-empty-in' },
+        icon('i-camera'),
+        el('h3', { text: 'Scan paper documents' }),
+        el('p', { text: touch
+          ? 'Take a photo of each page. Folio finds the edges of the page, straightens it and cleans it up. Then it puts all the pages into one PDF.'
+          : 'Choose photos of each page. Folio finds the edges of the page, straightens it and cleans it up. Then it puts all the pages into one PDF.' }),
+        el('p', { class: 'scan-tip', text: 'For the best result, put the page on a darker surface in good light.' }),
+        el('div', { class: 'row' }, ...scanAddButtons(true)))));
+    } else {
+      const grid = el('ol', { class: 'scan-grid', 'aria-label': 'Scanned pages' });
+      scan.pages.forEach((pg, i) => {
+        const ready = pg.status === 'ready';
+        const thumb = pg.status === 'loading'
+          ? el('div', { class: 'scan-thumb loading' }, el('span', { class: 'spinner', 'aria-hidden': 'true' }), el('span', { text: 'Preparing photo…' }))
+          : el('button', { class: 'scan-thumb' + (pg.status === 'updating' ? ' updating' : ''), type: 'button', 'aria-label': `Adjust page ${i + 1}`, title: 'Adjust the corners', disabled: scan.busy, onclick: () => openScanEditor(pg.id) },
+            el('img', { src: pg.thumbUrl, alt: '' }),
+            pg.status === 'updating' ? el('span', { class: 'spinner', 'aria-hidden': 'true' }) : null);
+        grid.append(el('li', { class: 'scan-card', 'data-id': pg.id }, thumb,
+          el('div', { class: 'scan-card-bar' },
+            el('span', { class: 'scan-num', text: `Page ${i + 1}` }),
+            scanIconBtn('i-left', 'Move page earlier', () => moveScanPage(i, -1), i === 0 || scan.busy, 'left'),
+            scanIconBtn('i-right', 'Move page later', () => moveScanPage(i, 1), i === n - 1 || scan.busy, 'right'),
+            scanIconBtn('i-rot-r', 'Rotate page', () => rotateScanPage(pg, 90), !ready || scan.busy, 'rotate'),
+            scanIconBtn('i-trash', 'Remove page', () => removeScanPage(pg), scan.busy, 'remove'))));
+      });
+      if (!scan.busy) grid.append(el('li', { class: 'scan-card scan-add' }, el('p', { text: 'Add the next page' }), ...scanAddButtons(false)));
+      body = el('div', { class: 'scan-body' }, grid);
+    }
+    foot = scanFooter();
+  }
+  sheet.replaceChildren(head, body, foot);
+}
+function scanFooter() {
+  const n = scan.pages.length, loading = scan.pages.some(p => p.status !== 'ready');
+  if (scan.busy) {
+    return el('div', { class: 'scan-foot' }, el('div', { class: 'scan-progress', role: 'status' }, el('div', { class: 'progress' }, el('i')), el('span', { text: 'Getting ready…' })));
+  }
+  const setLook = v => { scan.look = v; scanPrefs({ look: v }); renderScan(); refreshAllThumbs(); };
+  const setSize = v => { scan.size = v; scanPrefs({ size: v }); renderScan(); refreshAllThumbs(); };
+  const opts = el('div', { class: 'scan-opts' },
+    el('div', { class: 'scan-opt' }, el('span', { class: 'scan-lbl', text: 'Look' }), seg(SCAN_LOOKS, scan.look, setLook, 'Look')),
+    el('div', { class: 'scan-opt' }, el('span', { class: 'scan-lbl', text: 'Page size' }), seg(SCAN_SIZES, scan.size, setSize, 'Page size')),
+    scan.canAdd && scan.target !== 'insert' ? el('div', { class: 'scan-opt' }, el('span', { class: 'scan-lbl', text: 'Put pages in' }),
+      seg([['new', 'A new PDF'], ['append', 'This PDF']], scan.target, v => { scan.target = v; renderScan(); }, 'Put pages in')) : null);
+  const label = scan.target === 'new' ? (n ? `Make PDF (${n} page${n === 1 ? '' : 's'})` : 'Make PDF') : `Add ${n || ''} page${n === 1 ? '' : 's'}`.replace('  ', ' ');
+  return el('div', { class: 'scan-foot' }, opts,
+    el('div', { class: 'scan-actions' },
+      el('button', { class: 'btn ghost', type: 'button', onclick: requestCloseScan, text: 'Cancel' }),
+      el('button', { class: 'btn primary', type: 'button', id: 'scanMake', disabled: !n || loading, onclick: finishScan }, icon('i-save'), label)));
+}
+
+/* ---------- Adjusting one page ---------- */
+async function openScanEditor(id) {
+  const pg = scan.pages.find(p => p.id === id);
+  if (!pg || pg.status === 'loading') return;
+  const url = URL.createObjectURL(pg.prev);
+  const img = new Image();
+  img.src = url;
+  try { await img.decode(); } catch (e) { URL.revokeObjectURL(url); return; }
+  if (!scan) { URL.revokeObjectURL(url); return; }
+  if (scan.editing) URL.revokeObjectURL(scan.editing.url);
+  scan.editing = { id, url, img, start: pg.quad.map(p => p.slice()), startRot: pg.rot };
+  renderScan();
+  setTimeout(() => $('.scan-handle', scan.root)?.focus?.({ preventScroll: true }), 40);
+}
+async function closeScanEditor(silent) {
+  const ed = scan && scan.editing;
+  if (!ed) return;
+  const pg = scan.pages.find(p => p.id === ed.id);
+  URL.revokeObjectURL(ed.url);
+  scan.editing = null;
+  if (silent) return;
+  const changed = pg && (pg.rot !== ed.startRot || pg.quad.some((p, i) => p[0] !== ed.start[i][0] || p[1] !== ed.start[i][1]));
+  if (pg && changed) {
+    pg.status = 'updating';
+    renderScan();
+    try { await refreshScanThumb(pg); } catch (e) { console.error(e); }
+    if (!scan) return;
+    pg.status = 'ready';
+  }
+  renderScan();
+  if (pg) $(`.scan-card[data-id="${pg.id}"] .scan-thumb`, scan.root)?.focus?.({ preventScroll: true });
+}
+function scanEditorView() {
+  const ed = scan.editing, i = scan.pages.findIndex(p => p.id === ed.id), pg = scan.pages[i], n = scan.pages.length;
+  const frame = el('div', { class: 'scan-frame' });
+  const photo = el('img', { src: ed.url, alt: `Photo of page ${i + 1}`, draggable: 'false' });
+  const svg = svgEl('svg', { class: 'scan-quad', viewBox: '0 0 1 1', preserveAspectRatio: 'none', 'aria-hidden': 'true' });
+  const poly = svgEl('polygon', {});
+  svg.append(poly);
+  const handles = [0, 1, 2, 3].map(k => el('button', { class: 'scan-handle', type: 'button', 'aria-label': `${CORNER_NAMES[k]}. Use the arrow keys to move it.`, 'data-k': k }));
+  frame.append(photo, svg, ...handles);
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  const loupe = el('canvas', { class: 'scan-loupe', width: Math.round(112 * dpr), height: Math.round(112 * dpr), hidden: true, 'aria-hidden': 'true' });
+  const stage = el('div', { class: 'scan-stage' }, frame, loupe);
+  const result = el('canvas', { class: 'scan-result-canvas', 'aria-label': 'Preview of the straightened page' });
+  const place = () => {
+    poly.setAttribute('points', pg.quad.map(p => p.join(',')).join(' '));
+    handles.forEach((h, k) => { h.style.left = pg.quad[k][0] * 100 + '%'; h.style.top = pg.quad[k][1] * 100 + '%'; });
+  };
+  const fit = () => {
+    const r = stage.getBoundingClientRect(), pad = 64;
+    const k = Math.max(0.01, Math.min((r.width - pad) / pg.pw, (r.height - pad) / pg.ph));
+    frame.style.width = Math.round(pg.pw * k) + 'px';
+    frame.style.height = Math.round(pg.ph * k) + 'px';
+  };
+  let pending = 0;
+  const updateResult = async () => {
+    const my = ++pending;
+    await scanYield();
+    if (my !== pending || !scan || !scan.editing) return;
+    try {
+      const c = await renderScanPage(pg, { from: 'prev', maxSide: 560, look: scan.look, size: scan.size });
+      if (my !== pending) return;
+      result.width = c.width; result.height = c.height;
+      result.getContext('2d').drawImage(c, 0, 0);
+      c.width = c.height = 0;
+    } catch (e) { console.error(e); }
+  };
+  const showLoupe = k => {
+    const fr = frame.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+    const hx = fr.left - sr.left + pg.quad[k][0] * fr.width, hy = fr.top - sr.top + pg.quad[k][1] * fr.height;
+    let lx = hx - 56, ly = hy - 56 - 84;
+    if (ly < 6) ly = hy + 84 - 56;
+    loupe.style.left = clamp(lx, 6, sr.width - 118) + 'px';
+    loupe.style.top = clamp(ly, 6, sr.height - 118) + 'px';
+    loupe.hidden = false;
+    const D = loupe.width, ctx = loupe.getContext('2d'), zoom = 3;
+    const span = 112 / ((fr.width / pg.pw) * zoom); // photo pixels shown across the loupe
+    const cx = pg.quad[k][0] * pg.pw, cy = pg.quad[k][1] * pg.ph, sx = cx - span / 2, sy = cy - span / 2, f = D / span;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, D, D);
+    const ax = Math.max(0, sx), ay = Math.max(0, sy), bx = Math.min(pg.pw, sx + span), by = Math.min(pg.ph, sy + span);
+    if (bx > ax && by > ay) ctx.drawImage(ed.img, ax, ay, bx - ax, by - ay, (ax - sx) * f, (ay - sy) * f, (bx - ax) * f, (by - ay) * f);
+    const toL = p => [(p[0] * pg.pw - sx) * f, (p[1] * pg.ph - sy) * f];
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--select').trim() || '#1f6bff';
+    ctx.lineWidth = 2 * dpr;
+    ctx.beginPath();
+    const [a, b, c] = [toL(pg.quad[(k + 3) % 4]), toL(pg.quad[k]), toL(pg.quad[(k + 1) % 4])];
+    ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]);
+    ctx.stroke();
+    ctx.lineWidth = 1 * dpr;
+    ctx.beginPath();
+    ctx.moveTo(D / 2, D / 2 - 14 * dpr); ctx.lineTo(D / 2, D / 2 + 14 * dpr);
+    ctx.moveTo(D / 2 - 14 * dpr, D / 2); ctx.lineTo(D / 2 + 14 * dpr, D / 2);
+    ctx.stroke();
+  };
+  handles.forEach((h, k) => {
+    h.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      h.focus({ preventScroll: true });
+      try { h.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
+      const fr = frame.getBoundingClientRect(), start = pg.quad[k].slice(), sx = e.clientX, sy = e.clientY;
+      const move = ev => {
+        if (ev.pointerId !== e.pointerId) return;
+        ev.preventDefault();
+        pg.quad[k] = [clamp(start[0] + (ev.clientX - sx) / fr.width, 0, 1), clamp(start[1] + (ev.clientY - sy) / fr.height, 0, 1)];
+        place();
+        showLoupe(k);
+      };
+      const end = ev => {
+        if (ev.pointerId !== e.pointerId) return;
+        h.removeEventListener('pointermove', move);
+        h.removeEventListener('pointerup', end);
+        h.removeEventListener('pointercancel', end);
+        loupe.hidden = true;
+        updateResult();
+      };
+      h.addEventListener('pointermove', move);
+      h.addEventListener('pointerup', end);
+      h.addEventListener('pointercancel', end);
+      showLoupe(k);
+    });
+    h.addEventListener('keydown', e => {
+      const step = e.shiftKey ? 0.02 : 0.004, dx = { ArrowLeft: -step, ArrowRight: step }[e.key] || 0, dy = { ArrowUp: -step, ArrowDown: step }[e.key] || 0;
+      if (!dx && !dy) return;
+      e.preventDefault();
+      pg.quad[k] = [clamp(pg.quad[k][0] + dx, 0, 1), clamp(pg.quad[k][1] + dy, 0, 1)];
+      place();
+      updateResult();
+    });
+  });
+  const setQuad = q => { pg.quad = q.map(p => p.slice()); place(); updateResult(); };
+  const tools = el('div', { class: 'scan-tools' },
+    el('button', { class: 'btn', type: 'button', onclick: () => {
+      if (pg.found) { setQuad(pg.found); return; }
+      toast('Folio couldn’t find the edges of the page in this photo. Drag the corners instead.', 'info', 6000);
+    } }, icon('i-corners'), 'Find edges'),
+    el('button', { class: 'btn', type: 'button', onclick: () => setQuad(fullQuad()) }, icon('i-fit'), 'Whole photo'),
+    el('button', { class: 'btn', type: 'button', onclick: () => { pg.rot = (pg.rot + 270) % 360; updateResult(); } }, icon('i-rot-l'), 'Rotate left'),
+    el('button', { class: 'btn', type: 'button', onclick: () => { pg.rot = (pg.rot + 90) % 360; updateResult(); } }, icon('i-rot-r'), 'Rotate right'),
+    scanTouch() ? el('button', { class: 'btn', type: 'button', onclick: () => { scan.retake = pg.id; takePhoto(); } }, icon('i-camera'), 'Retake') : null,
+    el('button', { class: 'btn danger', type: 'button', onclick: async () => { await closeScanEditor(true); removeScanPage(pg); } }, icon('i-trash'), 'Remove page'));
+  const side = el('aside', { class: 'scan-side' },
+    el('p', { text: scanTouch() ? 'Drag each corner to a corner of the page. A close-up appears while you drag.' : 'Drag each corner to a corner of the page.' }),
+    el('div', { class: 'scan-result' }, result),
+    el('div', { class: 'scan-opt' }, el('span', { class: 'scan-lbl', text: 'Look' }), seg(SCAN_LOOKS, scan.look, v => { scan.look = v; scanPrefs({ look: v }); renderScan(); refreshAllThumbs(); }, 'Look')),
+    tools);
+  const body = el('div', { class: 'scan-body scan-editor' }, stage, side);
+  scan.ro = new ResizeObserver(() => { fit(); });
+  scan.ro.observe(stage);
+  requestAnimationFrame(() => { fit(); place(); });
+  place();
+  updateResult();
+  const go = d => { const next = scan.pages[i + d]; if (!next || next.status === 'loading') return; closeScanEditor(true).then(() => openScanEditor(next.id)); };
+  const foot = el('div', { class: 'scan-foot' },
+    el('div', { class: 'scan-pager' },
+      scanIconBtn('i-left', 'Previous page', () => go(-1), i === 0),
+      el('span', { text: `Page ${i + 1} of ${n}` }),
+      scanIconBtn('i-right', 'Next page', () => go(1), i === n - 1)),
+    el('div', { class: 'scan-actions' }, el('button', { class: 'btn primary', type: 'button', onclick: () => closeScanEditor() }, icon('i-tick'), 'Done')));
+  return [body, foot];
+}
+
 /* ============================== Desktop app ============================== */
 // The offline build sets FOLIO_DESKTOP. These features need a top-level window with real file access.
 function initDesktop() {
@@ -3985,10 +4869,15 @@ function initWebApp() {
 function registerOffline() {
   if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
   const sw = navigator.serviceWorker;
-  const updating = !!sw.controller;
+  let controlled = !!sw.controller;
   sw.register('sw.js').catch(e => console.warn('Offline copy unavailable:', e));
-  if (!updating) sw.ready.then(() => toast('Folio is ready to use offline.', 'ok', 6000));
-  else sw.addEventListener('controllerchange', () => toast('Folio has been updated. The new version loads next time you open it.', 'info', 7000), { once: true });
+  if (!controlled) sw.ready.then(() => toast('Folio is ready to use offline.', 'ok', 6000));
+  sw.addEventListener('controllerchange', () => {
+    // The first change is the offline copy taking over on a first visit. Later changes are new versions.
+    if (!controlled) { controlled = true; return; }
+    if (S.dirty) toast('Folio has been updated. The new version loads next time you open it.', 'info', 8000);
+    else toast('Folio has been updated.', 'info', 15000, { label: 'Reload', run: () => location.reload() });
+  });
 }
 
 function showInstallHint() {
@@ -4078,7 +4967,7 @@ async function openSaveDialog() {
   const overlaps = await editsOverFields().catch(() => 0);
   const primary = S.docs.get(S.primary);
   const stem = (primary ? primary.name : 'document.pdf').replace(/\.pdf$/i, '');
-  const nameIn = el('input', { class: 'text-input', id: 'saveName', value: `${stem}${S.isSample ? '' : ' (edited)'}.pdf`, spellcheck: 'false' });
+  const nameIn = el('input', { class: 'text-input', id: 'saveName', value: `${stem}${S.isSample || S.freshName ? '' : ' (edited)'}.pdf`, spellcheck: 'false' });
   const used = new Set(S.pages.map(p => p.docId));
   const hasForm = [...S.docs.values()].some(d => used.has(d.id) && d.hasForm && !d.raster);
   const flatten = el('input', { type: 'checkbox', id: 'saveFlatten', checked: overlaps > 0 });
@@ -4735,6 +5624,7 @@ async function init() {
   downloadsCap = window.claude && typeof window.claude.use === 'function' ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
   initObservers();
   wireUI();
+  initScan();
   updateCtx();
   try {
     setBoot('Preparing a sample form…');

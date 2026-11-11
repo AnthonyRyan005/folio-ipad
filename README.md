@@ -1,6 +1,6 @@
 # Folio PDF Editor
 
-Open, edit, sign and fill in PDF files in your browser. Folio runs entirely on your device. Your PDFs are never uploaded.
+Open, edit, sign and fill in PDF files in your browser, and scan paper documents with your camera. Folio runs entirely on your device. Your PDFs are never uploaded.
 
 ## Use it on an iPad
 

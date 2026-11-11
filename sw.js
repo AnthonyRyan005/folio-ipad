@@ -1,6 +1,6 @@
 // Folio keeps a copy of itself on the device so it opens without the internet.
 // The build changes VERSION whenever any file changes, so devices pick up new versions.
-const VERSION = 'folio-c8ec64b3f5d4';
+const VERSION = 'folio-14454d7ab593';
 const FILES = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener('install', event => {
