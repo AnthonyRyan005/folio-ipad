@@ -361,6 +361,9 @@ body:has(.scan) .install-hint { display: none; }
 .cam-res:empty { display: none; }
 .cam-app { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 0; color: #fff; font-size: 15px; font-weight: 600; min-height: 44px; padding: 0 6px; white-space: nowrap; }
 .cam-app svg.ic { width: 18px; height: 18px; }
+.cam-light { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 0; color: #fff; font-size: 15px; font-weight: 600; min-height: 44px; min-width: 44px; padding: 0 6px; white-space: nowrap; }
+.cam-light svg.ic { width: 18px; height: 18px; }
+.cam-light[data-lit="true"] svg.ic { color: #ffd60a; fill: #ffd60a; }
 @media (max-width: 700px) { .cam-app span, .cam-res { display: none; } }
 .cam-view { position: relative; min-height: 0; overflow: hidden; }
 .cam-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
@@ -585,6 +588,7 @@ select.text-input { padding-right: 6px; }
     <symbol id="i-fit" viewBox="0 0 24 24"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
     <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3.5 8.5A1.5 1.5 0 0 1 5 7h2.4l1.5-2.2h6.2L16.6 7H19a1.5 1.5 0 0 1 1.5 1.5v9.5A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18z"/><circle cx="12" cy="13" r="3.6"/></symbol>
+    <symbol id="i-flash" viewBox="0 0 24 24"><path d="M13.5 2.8L5.5 13.4h5.8l-1.1 7.8 8.3-10.9h-6z"/></symbol>
     <symbol id="i-left" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></symbol>
     <symbol id="i-right" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
     <symbol id="i-corners" viewBox="0 0 24 24"><path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15"/><path d="M8.5 8.5h7v7h-7z"/></symbol>
@@ -3996,6 +4000,7 @@ function openSignature() {
 // 3. Snap each side onto the paper's edge: look across the side for the strongest change in brightness in the right
 //    direction, and fit a straight line through those points, ignoring outliers.
 // 4. Keep the candidate whose sides sit on the most edge.
+// 5. Nothing convincing (often a white page on a white desk): look again for faint edges. See dtFaint.
 const DT_CACHE = new Map();
 
 function dtFrame(src, size) {
@@ -4026,7 +4031,7 @@ function dtFrame(src, size) {
     const a = g[i - w + 1] + 2 * g[i + 1] + g[i + w + 1] - g[i - w - 1] - 2 * g[i - 1] - g[i + w - 1];
     const b = g[i + w - 1] + 2 * g[i + w] + g[i + w + 1] - g[i - w - 1] - 2 * g[i - w] - g[i - w + 1];
     gx[i] = a / 8; gy[i] = b / 8;
-    const m = Math.hypot(a, b) / 8;
+    const m = Math.sqrt(a * a + b * b) / 8;
     mag[i] = m;
     if (m > max) max = m;
   }
@@ -4036,6 +4041,7 @@ function dtFrame(src, size) {
   let acc = 0, b = 255;
   for (; b > 0; b--) { acc += bins[b]; if (acc >= n * 0.03) break; }
   F.gscale = Math.max(4, b / (k || 1));
+  F.stamp = (F.stamp || 0) + 1; // a new picture: anything worked out for the last one is stale
   return F;
 }
 
@@ -4068,7 +4074,11 @@ function dtOutlineMask(F, gap) {
   let e = new Uint8Array(n);
   for (let i = 0; i < n; i++) e[i] = mag[i] > thr ? 1 : 0;
   if (gap) e = morph(e, w, h, gap, true);
-  const bg = new Uint8Array(n), q = new Int32Array(n);
+  return dtFloodMask(e, w, h);
+}
+// Everything a flood from the picture's border can't reach without crossing an edge.
+function dtFloodMask(e, w, h) {
+  const n = w * h, bg = new Uint8Array(n), q = new Int32Array(n);
   let head = 0, tail = 0;
   const push = p => { if (!e[p] && !bg[p]) { bg[p] = 1; q[tail++] = p; } };
   for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
@@ -4352,10 +4362,10 @@ function dtSample(a, F, x, y) {
 // radius: how far across each side to look, in pixels of the analysed picture.
 function dtRefine(F, quad, radius, iters = 2) {
   const { w, h, gx, gy, gray } = F;
-  let q = dtOrder(quad), cover = 0, strength = 0;
+  let q = dtOrder(quad), cover = 0, strength = 0, contrast = 0;
   for (let it = 0; it < iters; it++) {
     const cx = q.reduce((s, p) => s + p[0], 0) / 4, cy = q.reduce((s, p) => s + p[1], 0) / 4;
-    const lines = [], covs = [], strs = [], pols = [];
+    const lines = [], covs = [], strs = [], pols = [], diffs = [], snapped = [];
     let borderSides = 0;
     for (let i = 0; i < 4; i++) {
       const A = q[i], B = q[(i + 1) % 4], dx = B[0] - A[0], dy = B[1] - A[1], len = Math.hypot(dx, dy);
@@ -4374,6 +4384,7 @@ function dtRefine(F, quad, radius, iters = 2) {
       }
       const polarity = !cnt ? 0 : inside / cnt > outside / cnt + 5 ? -1 : outside / cnt > inside / cnt + 5 ? 1 : 0;
       pols.push(cnt >= 3 ? polarity : null);
+      if (cnt >= 3) diffs.push(Math.abs(inside - outside) / cnt);
       const K = clamp(Math.round(len / 5), 12, 48), pts = [];
       let usable = 0, hits = 0, sum = 0;
       for (let k = 0; k < K; k++) {
@@ -4402,6 +4413,7 @@ function dtRefine(F, quad, radius, iters = 2) {
       const line = pts.length >= 6 ? dtFitLine(pts) : { px: A[0], py: A[1], dx, dy };
       let inl = 0;
       if (pts.length >= 6) for (const p of pts) if (Math.abs((p[0] - line.px) * -line.dy + (p[1] - line.py) * line.dx) <= 1.5) inl++;
+      if (usable >= 4) snapped.push(...pts);
       if (usable < 4) { borderSides++; covs.push(null); } else covs.push(inl / usable); // sides along the picture's border prove nothing
       strs.push(hits ? sum / hits / F.gscale : 0);
       lines.push(line);
@@ -4430,17 +4442,238 @@ function dtRefine(F, quad, radius, iters = 2) {
       }
       if (!cnt || sum / cnt < 115) return null;
     }
+    // Little difference between inside and outside: make sure the sides aren't sitting on print, such as the edge of
+    // a block of text on a white page lying on a white desk.
+    contrast = diffs.length ? diffs.reduce((s, v) => s + v, 0) / diffs.length : 0;
+    if (contrast < 40 && snapped.length) {
+      const txt = dtPrint(F);
+      let onPrint = 0;
+      for (const [x, y] of snapped) if (txt[clamp(Math.round(y), 0, h - 1) * w + clamp(Math.round(x), 0, w - 1)]) onPrint++;
+      if (onPrint > snapped.length * 0.4) return null;
+    }
     q = dtOrder(next);
     const real = covs.filter(v => v !== null), realStr = strs.filter((v, i) => covs[i] !== null);
     cover = real.reduce((s, v) => s + v, 0) / real.length;
     strength = realStr.reduce((s, v) => s + v, 0) / realStr.length;
     if (Math.min(...real) < 0.15) cover *= 0.6; // a side with no edge at all is suspicious
   }
-  return { quad: q, cover, strength };
+  return { quad: q, cover, strength, contrast };
+}
+
+/* ---------- Faint edges: a white page on a white desk ---------- */
+// When the page and the desk are almost the same brightness, the paper's edge is a small, sharp change: slightly
+// brighter or darker, a thin contact shadow, or a slight change of tint (paper is often bluer than a white table).
+// So: remove slow changes in light (shadows, vignetting), add tint to brightness, judge edges against the camera's own
+// noise instead of the print (the strongest edges in the picture), and ignore print when snapping to the edge.
+function dtBlur121(g, t, w, h) {
+  for (let y = 0; y < h; y++) { const o = y * w; t[o] = g[o]; t[o + w - 1] = g[o + w - 1]; for (let x = 1; x < w - 1; x++) t[o + x] = (g[o + x - 1] + 2 * g[o + x] + g[o + x + 1]) / 4; }
+  for (let x = 0; x < w; x++) { g[x] = t[x]; g[(h - 1) * w + x] = t[(h - 1) * w + x]; for (let y = 1; y < h - 1; y++) { const i = y * w + x; g[i] = (t[i - w] + 2 * t[i] + t[i + w]) / 4; } }
+}
+// Box blur of radius r with running sums (src and dst may be the same array).
+function dtBoxBlur(src, dst, t, w, h, r) {
+  const k = 1 / (2 * r + 1);
+  for (let y = 0; y < h; y++) {
+    const o = y * w;
+    let acc = src[o] * (r + 1);
+    for (let x = 1; x <= r; x++) acc += src[o + Math.min(x, w - 1)];
+    for (let x = 0; x < w; x++) { t[o + x] = acc * k; acc += src[o + Math.min(x + r + 1, w - 1)] - src[o + Math.max(x - r, 0)]; }
+  }
+  for (let x = 0; x < w; x++) {
+    let acc = t[x] * (r + 1);
+    for (let y = 1; y <= r; y++) acc += t[Math.min(y, h - 1) * w + x];
+    for (let y = 0; y < h; y++) { dst[y * w + x] = acc * k; acc += t[Math.min(y + r + 1, h - 1) * w + x] - t[Math.max(y - r, 0) * w + x]; }
+  }
+}
+function dtSobel(g, gx, gy, w, h) {
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x;
+    gx[i] = (g[i - w + 1] + 2 * g[i + 1] + g[i + w + 1] - g[i - w - 1] - 2 * g[i - 1] - g[i + w - 1]) / 8;
+    gy[i] = (g[i + w - 1] + 2 * g[i + w] + g[i + w + 1] - g[i - w - 1] - 2 * g[i - w] - g[i - w + 1]) / 8;
+  }
+}
+// A low percentile of values that are mostly small, to 1/64.
+function dtLowPct(a, n, f, top = 8) {
+  const bins = new Uint32Array(513), k = 512 / top, want = n * f;
+  for (let i = 0; i < n; i++) { const v = a[i] * k; bins[v < 512 ? v | 0 : 512]++; }
+  let acc = 0;
+  for (let b = 0; b < 513; b++) { acc += bins[b]; if (acc >= want) return (b + 0.5) / k; }
+  return top;
+}
+function dtFaint(F) {
+  if (F.fstamp === F.stamp) return F;
+  F.fstamp = F.stamp;
+  const { w, h, n, gray, rgb } = F;
+  if (!F.hp) for (const k of ['hp', 'ch', 'lo', 'hgx', 'hgy', 'cgx', 'cgy', 'hmag']) F[k] = new Float32Array(n);
+  const { hp, ch, lo, hgx, hgy, cgx, cgy, hmag } = F, t = F.tmp;
+  for (let i = 0, j = 0; i < n; i++, j += 4) ch[i] = rgb[j + 2] - rgb[j]; // tint: blue against yellow
+  dtBlur121(ch, t, w, h); dtBlur121(ch, t, w, h);
+  dtBoxBlur(gray, lo, t, w, h, 3); dtBoxBlur(lo, lo, t, w, h, 3);
+  for (let i = 0; i < n; i++) hp[i] = gray[i] - lo[i];
+  dtBoxBlur(ch, lo, t, w, h, 3); dtBoxBlur(lo, lo, t, w, h, 3);
+  for (let i = 0; i < n; i++) ch[i] -= lo[i];
+  dtSobel(hp, hgx, hgy, w, h); dtSobel(ch, cgx, cgy, w, h);
+  for (let i = 0; i < n; i++) { const a = hgx[i], b = hgy[i], c = cgx[i], d = cgy[i]; hmag[i] = Math.sqrt(a * a + b * b); lo[i] = Math.sqrt(c * c + d * d); }
+  // Weigh tint against brightness by how noisy each is in this camera.
+  const kc = F.kc = clamp(dtLowPct(hmag, n, 0.3) / Math.max(1e-3, dtLowPct(lo, n, 0.3)), 0.25, 1.5);
+  for (let i = 0; i < n; i++) { const a = hmag[i], c = kc * lo[i]; hmag[i] = Math.sqrt(a * a + c * c); }
+  F.fnoise = Math.max(0.04, dtLowPct(hmag, n, 0.3) / 0.845);
+  dtPrint(F);
+  return F;
+}
+// Largest (or smallest) value within r along each line. len: values per line, step: between values, stride: between lines.
+function dtRunMax(src, dst, len, lines, r, step, stride, big) {
+  for (let l = 0; l < lines; l++) {
+    const o = l * stride;
+    for (let i = 0; i < len; i++) {
+      const a = i - r < 0 ? 0 : i - r, e = i + r > len - 1 ? len - 1 : i + r;
+      let m = src[o + a * step];
+      if (big) { for (let k = a + 1; k <= e; k++) { const v = src[o + k * step]; if (v > m) m = v; } }
+      else { for (let k = a + 1; k <= e; k++) { const v = src[o + k * step]; if (v < m) m = v; } }
+      dst[o + i * step] = m;
+    }
+  }
+}
+// Print: thin marks much darker than what's either side of them (a black top-hat), and the 2 pixels next to them.
+// A paper's edge, or the thin shadow beside it, is a far smaller change, and a dark desk is too wide to count.
+// How dark counts as print depends on how dark the darkest marks in the picture are.
+function dtPrint(F) {
+  if (F.pstamp === F.stamp) return F.txt;
+  F.pstamp = F.stamp;
+  const { w, h, n, gray } = F;
+  if (!F.txt) F.txt = new Uint8Array(n);
+  if (!F.top) { F.top = new Float32Array(n); F.top2 = new Float32Array(n); }
+  const a = F.top, b = F.top2, t = F.tmp, txt = F.txt, r = Math.max(2, Math.round(Math.max(w, h) / 200));
+  // Brightest nearby (fills in marks thinner than the window), then darkest nearby: rows, then columns.
+  dtRunMax(gray, t, w, h, r, 1, w, true); dtRunMax(t, a, h, w, r, w, 1, true);
+  dtRunMax(a, t, w, h, r, 1, w, false); dtRunMax(t, b, h, w, r, w, 1, false);
+  let deep = 0;
+  for (let i = 0; i < n; i++) { const v = b[i] - gray[i]; a[i] = v > 0 ? v : 0; if (a[i] > deep) deep = a[i]; }
+  const darkest = dtLowPct(a, n, 0.995, Math.max(1, deep)), dark = Math.max(12, 0.4 * darkest);
+  for (let i = 0; i < n; i++) b[i] = a[i] > dark ? 1 : 0;
+  dtBoxBlur(b, b, t, w, h, 2);
+  for (let i = 0; i < n; i++) txt[i] = b[i] > 0.03 ? 1 : 0;
+  return txt;
+}
+// Page areas outlined by faint edges.
+function dtFaintMask(F) {
+  dtFaint(F);
+  const { w, h, n, hmag } = F, thr = Math.max(0.3, F.fnoise * 4.5);
+  let e = new Uint8Array(n);
+  for (let i = 0; i < n; i++) e[i] = hmag[i] > thr ? 1 : 0;
+  return dtFloodMask(morph(e, w, h, 1, true), w, h);
+}
+// Like dtRefine, for faint edges: the change may go either way, tint counts, and print is ignored.
+function dtRefineFaint(F, quad, radius, iters = 2) {
+  dtFaint(F);
+  const { w, h, hgx, hgy, cgx, cgy, txt, gray } = F, kc = F.kc, thr = Math.max(0.3, F.fnoise * 4);
+  let q = dtOrder(quad), cover = 0, strength = 0;
+  const mean = pts => { let s = 0, c = 0; for (const [x, y] of pts) if (x >= 0 && y >= 0 && x <= w - 1 && y <= h - 1) { s += dtSample(gray, F, x, y); c++; } return c ? s / c : -1; };
+  for (let it = 0; it < iters; it++) {
+    const cx = q.reduce((s, p) => s + p[0], 0) / 4, cy = q.reduce((s, p) => s + p[1], 0) / 4;
+    const lines = [], covs = [], strs = [], ring = [], inner = [];
+    let borderSides = 0;
+    for (let i = 0; i < 4; i++) {
+      const A = q[i], B = q[(i + 1) % 4], dx = B[0] - A[0], dy = B[1] - A[1], len = Math.hypot(dx, dy);
+      if (len < 6) return null;
+      let nx = -dy / len, ny = dx / len;
+      if (((A[0] + B[0]) / 2 - cx) * nx + ((A[1] + B[1]) / 2 - cy) * ny < 0) { nx = -nx; ny = -ny; }
+      const R = Math.max(2, Math.min(radius, len * 0.12)), K = clamp(Math.round(len / 4), 12, 64), pts = [];
+      let usable = 0, hits = 0, sum = 0;
+      for (let k = 0; k < K; k++) {
+        const t = 0.06 + 0.88 * (k + 0.5) / K, px = A[0] + dx * t, py = A[1] + dy * t;
+        if (px < 2 || py < 2 || px > w - 3 || py > h - 3) continue;
+        usable++;
+        if (k % 4 === 1) { ring.push([px + nx * 6, py + ny * 6]); inner.push([px - nx * 6, py - ny * 6]); }
+        let bestV = 0, bestR = -1;
+        const vals = [];
+        for (let r = -R; r <= R + 1e-6; r += 1) {
+          const sx = px + nx * r, sy = py + ny * r;
+          let v = 0;
+          if (sx >= 1 && sy >= 1 && sx <= w - 2 && sy <= h - 2 && !txt[((sy + 0.5) | 0) * w + ((sx + 0.5) | 0)]) {
+            const dl = dtSample(hgx, F, sx, sy) * nx + dtSample(hgy, F, sx, sy) * ny;
+            const dc = (dtSample(cgx, F, sx, sy) * nx + dtSample(cgy, F, sx, sy) * ny) * kc;
+            v = Math.sqrt(dl * dl + dc * dc);
+          }
+          vals.push(v);
+          const score = v * (1 - 0.35 * (r / R) * (r / R));
+          if (score > bestV) { bestV = score; bestR = vals.length - 1; }
+        }
+        if (bestR < 0 || vals[bestR] < thr) continue;
+        const v = vals[bestR];
+        let off = 0;
+        if (bestR > 0 && bestR < vals.length - 1) { const a = vals[bestR - 1], c = vals[bestR + 1], den = a - 2 * v + c; if (den < 0) off = clamp(0.5 * (a - c) / den, -0.5, 0.5); }
+        const rr = -R + bestR + off;
+        pts.push([px + nx * rr, py + ny * rr]);
+        hits++;
+        sum += v;
+      }
+      const line = pts.length >= 6 ? dtFitLine(pts) : { px: A[0], py: A[1], dx, dy };
+      let inl = 0;
+      if (pts.length >= 6) for (const p of pts) if (Math.abs((p[0] - line.px) * -line.dy + (p[1] - line.py) * line.dx) <= 1.5) inl++;
+      if (usable < 4) { borderSides++; covs.push(null); } else covs.push(inl / usable);
+      strs.push(hits ? sum / hits : 0);
+      lines.push(line);
+    }
+    const next = [];
+    for (let i = 0; i < 4; i++) {
+      const p = dtIntersect(lines[(i + 3) % 4], lines[i]);
+      if (!p) return null;
+      next.push(p);
+    }
+    if (!dtConvex(next) || borderSides > 1) return null;
+    if (next.some((p, i) => Math.hypot(p[0] - q[i][0], p[1] - q[i][1]) > radius * 4 + 6)) return null;
+    const real = covs.filter(v => v !== null), realStr = strs.filter((v, i) => covs[i] !== null);
+    // Every side in view must show its edge: four faint lines that happen to cross are not a page.
+    if (Math.min(...real) < 0.35) return null;
+    // Paper is light, and not much darker than the desk around it. Rules out screens, phones and dark objects.
+    const inside = [];
+    for (let a = 1; a < 6; a++) for (let b = 1; b < 6; b++) {
+      const u = a / 6, v = b / 6;
+      inside.push([(1 - v) * ((1 - u) * next[0][0] + u * next[1][0]) + v * ((1 - u) * next[3][0] + u * next[2][0]),
+        (1 - v) * ((1 - u) * next[0][1] + u * next[1][1]) + v * ((1 - u) * next[3][1] + u * next[2][1])]);
+    }
+    const inMean = mean(inside), outMean = mean(ring), edgeIn = mean(inner);
+    if (inMean < 110 || (outMean > 0 && inMean < outMean * 0.7)) return null;
+    // A strong change at the sides is the normal search's job. Here it means a light object on a dark desk.
+    if (outMean > 0 && edgeIn > 0 && Math.abs(edgeIn - outMean) > 60) return null;
+    q = dtOrder(next);
+    cover = real.reduce((s, v) => s + v, 0) / real.length;
+    strength = realStr.reduce((s, v) => s + v, 0) / realStr.length / (thr * 3);
+  }
+  return { quad: q, cover, strength, faint: true };
+}
+// Is the desk light, nearly as light as paper? Only then is the faint-edge search worth its time.
+// Compares the picture's border (usually desk) with the brightest tenth of the picture (usually paper).
+// Also notes how light and how colourful the border is (F.ringGray, F.ringSat), for the camera's tip about white desks.
+function dtLightDesk(F) {
+  const { w, h, n, gray, rgb } = F, all = new Uint32Array(256), ring = new Uint32Array(256);
+  let rn = 0, sat = 0;
+  for (let i = 0; i < n; i++) all[gray[i] | 0]++;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (x > 2 && y > 2 && x < w - 3 && y < h - 3) { x = w - 4; continue; }
+    const i = y * w + x, j = i * 4;
+    ring[gray[i] | 0]++; rn++;
+    sat += Math.max(rgb[j], rgb[j + 1], rgb[j + 2]) - Math.min(rgb[j], rgb[j + 1], rgb[j + 2]);
+  }
+  const pct = (hist, total, f) => { let acc = 0; for (let b = 0; b < 256; b++) { acc += hist[b]; if (acc >= total * f) return b; } return 255; };
+  F.ringGray = pct(ring, rn, 0.5);
+  F.ringSat = sat / rn;
+  return F.ringGray >= 100 && F.ringGray >= 0.6 * pct(all, n, 0.9);
+}
+// Candidates from areas outlined by faint edges, with straight-line fits as a second try.
+function dtFaintCandidates(F, minArea) {
+  const quads = [], outers = [];
+  for (const reg of dtRegions(dtFaintMask(F), F, minArea).slice(0, 2)) {
+    const outer = dtOuterEdge(reg, F), hull = dtHull(outer.edge);
+    if (hull.length < 4 || Math.abs(dtArea(hull)) < minArea * F.n) continue;
+    outers.push(outer);
+    for (const q of [dtSidesQuad(hull), dtCornersQuad(hull)]) if (q && dtPlausible(dtOrder(q), F, minArea)) quads.push(dtOrder(q));
+  }
+  return { quads: dtUnique(quads, F), outers };
 }
 
 /* ---------- Putting it together ---------- */
-function dtScore(r) { return r ? r.cover * (0.65 + 0.35 * Math.min(1, r.strength * 2)) : 0; }
+function dtScore(r) { return r ? r.cover * (0.65 + 0.35 * Math.min(1, r.strength * 2)) * (r.faint ? 0.95 : 1) : 0; }
 // Quick candidates from each area's convex outline. The areas are kept for the slower straight-line search.
 function dtCandidates(F, minArea, live) {
   const out = [], outers = [];
@@ -4486,7 +4719,29 @@ function dtDetect(F, minArea = 0.05, live = false) {
     for (const o of outers.slice(0, 4)) more.push(...dtLineQuads(dtHough(o.edge, F), F, minArea, o.map));
     tryAll(dtUnique(more, F).filter(q => !quads.some(u => dtQuadDist(u, q, F) < 0.01)));
   }
+  // Nothing excellent and a light desk: perhaps a white page on a white desk. Look for faint edges too, keep the better.
+  if ((!best || best.score < 0.9) && dtLightDesk(F)) best = dtFaintSearch(F, minArea, best);
   return best && best.cover >= 0.45 ? best : null;
+}
+// The faint-edge search on its own. Returns the best faint candidate if it beats `best`, otherwise `best`.
+function dtFaintSearch(F, minArea, best = null) {
+  const diag = Math.hypot(F.w, F.h);
+  const tryFaint = list => {
+    for (const q of list) {
+      const r = dtRefineFaint(F, q, Math.max(3, diag * 0.01), 2);
+      if (!r || !dtPlausible(r.quad, F, minArea)) continue;
+      r.score = dtScore(r);
+      if (!best || r.score > best.score) best = r;
+    }
+  };
+  const fc = dtFaintCandidates(F, minArea);
+  tryFaint(fc.quads);
+  if (!best || best.score < 0.8) {
+    const more = [];
+    for (const o of fc.outers) more.push(...dtLineQuads(dtHough(o.edge, F), F, minArea, o.map));
+    tryFaint(dtUnique(more, F).filter(q => !fc.quads.some(u => dtQuadDist(u, q, F) < 0.01)));
+  }
+  return best;
 }
 const dtNorm = (q, F) => q.map(([x, y]) => [clamp(x / F.w, 0, 1), clamp(y / F.h, 0, 1)]);
 const dtPix = (q, F) => q.map(([x, y]) => [x * F.w, y * F.h]);
@@ -4497,7 +4752,7 @@ function detectPageQuad(src) {
   if (!F) return null;
   const r = dtDetect(F, 0.04);
   if (!r) return null;
-  const fine = dtRefine(F, r.quad, 3, 2);
+  const fine = r.faint ? dtRefineFaint(F, r.quad, 3, 2) : dtRefine(F, r.quad, 3, 2);
   return dtNorm(fine && fine.cover >= r.cover * 0.85 ? fine.quad : r.quad, F);
 }
 
@@ -4506,7 +4761,7 @@ function detectPageQuad(src) {
 // Photos are kept as JPEG blobs between steps, so a long scan doesn't run an iPad out of memory.
 // workMax keeps full camera photos: 4096 pixels is the largest canvas side Safari allows on iPad.
 // outMax is an A4 page at 300 dpi. Text is read from a copy no bigger than ocrMax, which is faster and just as accurate.
-const SCAN = { workMax: 4096, prevMax: 1100, outMax: 3508, ocrMax: 2600, thumbMax: 360, quality: 0.85 };
+const SCAN = { workMax: 4096, prevMax: 1100, outMax: 3508, ocrMax: 2600, thumbMax: 360, quality: 0.92 }; // pages: A4 at 300 dpi, high JPEG quality
 const SCAN_LOOKS = [['original', 'Original'], ['enhanced', 'Enhanced'], ['grey', 'Greyscale'], ['bw', 'Black and white']];
 const SCAN_SIZES = [['a4', 'A4'], ['letter', 'Letter'], ['photo', 'Same as photo']];
 const SCAN_PAPER = { a4: [595.28, 841.89], letter: [612, 792] };
@@ -4681,7 +4936,7 @@ async function preparePage(pg, src, hint) {
   pg.out = null;
   const work = drawScaled(src, SCAN.workMax);
   const prev = drawScaled(work, SCAN.prevMax);
-  pg.work = await canvasBlob(work, 0.92);
+  pg.work = await canvasBlob(work, 0.95); // the copy each page is made from: keep nearly all the detail
   pg.ww = work.width; pg.wh = work.height;
   work.width = work.height = 0;
   pg.prev = await canvasBlob(prev, 0.9);
@@ -5361,6 +5616,7 @@ function scanEditorView() {
 // In the iPad app, Take photo opens a live camera view. Several times a second Folio looks for a page in the picture
 // and outlines it. Once the page has been still for a moment, it takes the photo by itself and crops to the page.
 // It waits for the picture to change (a new page, or a hand turning one) before it takes the next photo.
+// On iPads with a flash (iPad Pro, iPad mini) the flash button offers Auto, On and Off.
 const liveCameraOk = () => !!(S.webapp && window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 const CAM_STEADY = 6; // looks in a row that must agree before the photo is taken, about two thirds of a second
 const CAM_CHANGE = 12; // how different the picture must look before the next automatic photo
@@ -5370,8 +5626,10 @@ function openLiveCamera({ retakeId = null } = {}) {
   if (!scan || cam) return;
   cam = {
     stream: null, raf: 0, tick: 0, quad: null, steady: 0, ready: 0, armed: true, sig: null, lastAt: 0, shots: 0, drawQuad: null,
-    trk: { quad: null, miss: 0, pending: null, pendN: 0, hist: [], cover: 0, n: 0 },
+    trk: { quad: null, miss: 0, pending: null, pendN: 0, hist: [], cover: 0, n: 0, faint: false },
     auto: scanPrefs().auto !== false, retakeId, sigCanvas: null,
+    flashMode: ['auto', 'on', 'off'].includes(scanPrefs().flash) ? scanPrefs().flash : 'auto', lit: false, autoLit: false, dim: 0,
+    torchOk: false, focusOk: false, mode: null,
   };
   const video = el('video', { class: 'cam-video', playsinline: true, 'webkit-playsinline': true, muted: true, autoplay: true, 'aria-hidden': 'true' });
   video.muted = true;
@@ -5388,6 +5646,7 @@ function openLiveCamera({ retakeId = null } = {}) {
       el('button', { class: 'cam-close', type: 'button', onclick: () => closeLiveCamera(), text: retakeId ? 'Cancel' : 'Close' }),
       status,
       el('div', { class: 'cam-extra' },
+        el('button', { class: 'cam-light', type: 'button', hidden: true, onclick: () => cycleFlash() }, icon('i-flash'), el('span')),
         el('span', { class: 'cam-res', title: 'Camera resolution in use' }),
         el('button', { class: 'cam-app', type: 'button', title: 'Take a full-size photo with the iPad Camera app', onclick: () => {
           const retake = cam && cam.retakeId;
@@ -5397,7 +5656,7 @@ function openLiveCamera({ retakeId = null } = {}) {
         } }, icon('i-camera'), el('span', { text: 'Camera app' })))),
     view,
     el('div', { class: 'cam-bar' }, done, shutter, autoBox));
-  Object.assign(cam, { root, video, overlay, flash, status, thumb, done, view, autoBox });
+  Object.assign(cam, { root, video, overlay, flash, status, thumb, done, view, autoBox, light: $('.cam-light', root) });
   renderCamAuto();
   updateCamDone();
   scan.root.append(root);
@@ -5429,12 +5688,15 @@ async function startCameraStream() {
     if (!cam) { stream.getTracks().forEach(t => t.stop()); return; }
     cam.stream = stream;
     const track = stream.getVideoTracks()[0];
-    await bestCameraMode(track);
+    // Keep the request for the biggest picture, so turning the flash on or off never drops to a smaller one.
+    cam.mode = (await bestCameraMode(track)) || { width: { ideal: 4096 }, height: { ideal: 3072 } };
     await setupPhotoCapture(track);
     if (!cam || cam.stream !== stream) { stream.getTracks().forEach(t => t.stop()); return; }
     cam.video.srcObject = stream;
     await cam.video.play().catch(() => {});
     await waitForVideo(cam.video);
+    if (!cam) return;
+    await setupLight(track);
     if (!cam) return;
     showCamRes(track);
     cam.video.onresize = () => { if (cam) showCamRes(track); };
@@ -5447,11 +5709,12 @@ async function startCameraStream() {
   }
 }
 // Ask the camera for its largest picture. The modes on offer differ between iPads, so try the most exact request first.
+// Returns the request that worked, so later changes (such as the flash) can keep the same picture size.
 async function bestCameraMode(track) {
   const area = s => (s && s.width && s.height ? s.width * s.height : 0);
   let caps = null;
   try { caps = track && track.getCapabilities ? track.getCapabilities() : null; } catch (e) { caps = null; }
-  if (!caps || !caps.width || !caps.height || !caps.width.max || !caps.height.max) return;
+  if (!caps || !caps.width || !caps.height || !caps.width.max || !caps.height.max) return null;
   const W = caps.width.max, H = caps.height.max, before = area(track.getSettings());
   const attempts = [
     { width: { exact: W }, height: { exact: H } },
@@ -5462,19 +5725,93 @@ async function bestCameraMode(track) {
   for (const c of attempts) {
     try {
       await track.applyConstraints(c);
-      if (area(track.getSettings()) >= before) return;
+      if (area(track.getSettings()) >= before) return c;
     } catch (e) { /* that mode isn't offered here: try the next */ }
   }
+  return null;
 }
-// Some browsers can take a full still photo from the live camera, often bigger than the video picture. Safari can't yet.
+// Safari (iPadOS 18.4 and later) and Chrome can take a full still photo from the live camera. A still goes through the
+// camera's photo processing, which gives more detail and less noise than a frame of video, and it can use the flash.
 async function setupPhotoCapture(track) {
   if (!cam) return;
   cam.photo = null;
   if (!window.ImageCapture || !track) return;
   try {
     const ic = new ImageCapture(track), pc = await ic.getPhotoCapabilities();
-    if (cam && pc && pc.imageWidth && pc.imageHeight && pc.imageWidth.max && pc.imageHeight.max) cam.photo = { ic, w: pc.imageWidth.max, h: pc.imageHeight.max };
+    if (cam && pc && pc.imageWidth && pc.imageHeight && pc.imageWidth.max && pc.imageHeight.max) {
+      cam.photo = { ic, w: pc.imageWidth.max, h: pc.imageHeight.max, fill: Array.isArray(pc.fillLightMode) ? pc.fillLightMode : [] };
+    }
   } catch (e) { if (cam) cam.photo = null; }
+}
+
+/* ---------- Flash ---------- */
+// The flash can light the page while the camera looks (the torch) and when the photo is taken. Auto turns the light on
+// when the picture is dim, and leaves it on until the camera closes. Off never uses it. The choice is remembered.
+async function setupLight(track) {
+  let caps = {};
+  try { caps = (track.getCapabilities && track.getCapabilities()) || {}; } catch (e) { caps = {}; }
+  cam.torchOk = caps.torch === true || (Array.isArray(caps.torch) && caps.torch.includes(true));
+  cam.focusOk = Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous');
+  cam.lit = cam.torchOk && (cam.flashMode === 'on' || (cam.flashMode === 'auto' && cam.autoLit));
+  if (cam.torchOk || cam.focusOk) await applyCamConstraints(track);
+  renderCamLight();
+}
+// The picture size that worked, the light, and continuous focus where the camera offers it.
+function camConstraints() {
+  const c = Object.assign({}, cam.mode || {}), adv = [];
+  if (cam.torchOk) adv.push({ torch: !!cam.lit });
+  if (cam.focusOk) adv.push({ focusMode: 'continuous' });
+  if (adv.length) c.advanced = adv;
+  return c;
+}
+async function applyCamConstraints(track) {
+  try { await track.applyConstraints(camConstraints()); return true; } catch (e) { /* try the light on its own */ }
+  try { if (cam && cam.torchOk) { await track.applyConstraints({ advanced: [{ torch: !!cam.lit }] }); return true; } } catch (e) { /* no light now */ }
+  return false;
+}
+const hasFlash = () => !!cam && (cam.torchOk || !!(cam.photo && cam.photo.fill.some(m => m === 'flash' || m === 'auto')));
+async function setLight(on) {
+  if (!cam || !cam.torchOk || !cam.stream || cam.lit === on) { renderCamLight(); return; }
+  const track = cam.stream.getVideoTracks()[0];
+  cam.lit = on;
+  renderCamLight();
+  if (track && !(await applyCamConstraints(track)) && cam) { cam.lit = false; renderCamLight(); }
+}
+function cycleFlash() {
+  if (!cam) return;
+  cam.flashMode = cam.flashMode === 'auto' ? 'on' : cam.flashMode === 'on' ? 'off' : 'auto';
+  cam.autoLit = false;
+  cam.dim = 0;
+  scanPrefs({ flash: cam.flashMode });
+  setLight(cam.flashMode === 'on');
+}
+function renderCamLight() {
+  if (!cam || !cam.light) return;
+  cam.light.hidden = !hasFlash();
+  if (cam.light.hidden) return;
+  const name = { auto: 'Auto', on: 'On', off: 'Off' }[cam.flashMode];
+  cam.light.querySelector('span').textContent = name;
+  cam.light.dataset.lit = String(!!cam.lit);
+  cam.light.setAttribute('aria-label', `Flash: ${name}${cam.lit ? ', light on' : ''}. Tap to change.`);
+  cam.light.title = cam.flashMode === 'auto' ? 'Flash: Auto. Folio turns the light on when the picture is dim.' : `Flash: ${name}`;
+}
+// Auto: paper should look nearly white. If even the brightest tenth of the picture stays dull for about a second, the
+// room is too dark for a sharp, clean photo, so turn the light on.
+function camAutoLight(F) {
+  if (!cam.torchOk || cam.flashMode !== 'auto' || cam.lit) return;
+  const bins = new Uint32Array(64), g = F.gray;
+  let n = 0;
+  for (let i = 0; i < F.n; i += 3) { bins[Math.min(63, g[i] >> 2)]++; n++; }
+  let acc = 0, b = 63;
+  for (; b > 0; b--) { acc += bins[b]; if (acc >= n * 0.1) break; }
+  cam.dim = b * 4 < 130 ? cam.dim + 1 : 0;
+  if (cam.dim >= 8) { cam.autoLit = true; setLight(true); }
+}
+// The flash setting for a still photo. With the light already on, the still needs no flash.
+function photoFlash(c) {
+  const modes = (c.photo && c.photo.fill) || [];
+  const want = c.lit || c.flashMode === 'off' ? 'off' : c.flashMode === 'on' ? 'flash' : 'auto';
+  return modes.includes(want) ? want : null;
 }
 function showCamRes(track) {
   const s = track.getSettings ? track.getSettings() : {}, v = cam.video;
@@ -5535,20 +5872,27 @@ function camDist(a, b) {
   return Math.max(...a.map((p, i) => Math.hypot((p[0] - b[i][0]) * W, (p[1] - b[i][1]) * H))) / diag;
 }
 // Follow the page: snap the last outline onto the new picture, and look from scratch every few frames or when lost.
+// A page that barely stands out from the desk (white on white) is followed with the faint-edge search, which ignores print.
 function camDetect() {
   const F = dtFrame(cam.video, 360);
   if (!F) return null;
-  const T = cam.trk, diag = Math.hypot(F.w, F.h), norm = q => q.map(([x, y]) => [x / F.w, y / F.h]);
+  camAutoLight(F);
+  const T = cam.trk, diag = Math.hypot(F.w, F.h);
+  const make = r => ({ quad: r.quad.map(([x, y]) => [x / F.w, y / F.h]), cover: r.cover, score: r.score || dtScore(r), faint: !!r.faint || r.contrast < 25 });
   let det = null;
   if (T.quad) {
-    const r = dtRefine(F, dtPix(T.quad, F), diag * 0.035, 2);
-    if (r && r.cover >= 0.5 && dtPlausible(r.quad, F, 0.03)) det = { quad: norm(r.quad), cover: r.cover, score: dtScore(r) };
+    const prev = dtPix(T.quad, F);
+    const r = T.faint ? dtRefineFaint(F, prev, diag * 0.02, 2) : dtRefine(F, prev, diag * 0.035, 2);
+    if (r && r.cover >= 0.5 && dtPlausible(r.quad, F, 0.03)) det = make(r);
   }
   T.n++;
   if (!det || T.n % 4 === 0) {
-    const full = dtDetect(F, 0.03, true);
-    if (full && (!det || full.score > det.score + 0.08)) det = { quad: norm(full.quad), cover: full.cover, score: full.score };
+    // Following a faint page: try the faint search first, and the full search only if that finds nothing good.
+    let full = T.faint ? dtFaintSearch(F, 0.03) : null;
+    if (!full || full.cover < 0.45 || full.score < 0.85) full = dtDetect(F, 0.03, true);
+    if (full && (!det || full.score > det.score + 0.08)) det = make(full);
   }
+  if (!det) cam.lightDesk = dtLightDesk(F) && F.ringGray >= 140 && F.ringSat < 30; // a white or light grey surface
   return det;
 }
 function camTrack(det) {
@@ -5556,10 +5900,11 @@ function camTrack(det) {
   const T = cam.trk;
   if (!det) {
     // Keep showing the outline through a brief miss, such as a hand passing over the page.
-    if (++T.miss > 7) { T.quad = null; T.hist = []; T.pending = null; }
+    if (++T.miss > 7) { T.quad = null; T.hist = []; T.pending = null; T.faint = false; }
   } else {
     T.miss = 0;
     T.cover = det.cover;
+    T.faint = det.faint;
     if (!T.quad) { T.quad = det.quad; T.hist = []; }
     else {
       const d = camDist(det.quad, T.quad);
@@ -5578,6 +5923,7 @@ function camTrack(det) {
     if (T.hist.length > CAM_STEADY) T.hist.shift();
   }
   cam.quad = T.quad ? T.quad.map(([x, y]) => [clamp(x, 0, 1), clamp(y, 0, 1)]) : null;
+  if (cam.quad) cam.lostAt = 0; else if (!cam.lostAt) cam.lostAt = performance.now();
   // Steady when the page is in view now and the last few looks agree with each other to within 1% of the picture.
   const H = T.hist, last = H[H.length - 1];
   if (!det) { cam.ready = Math.max(0, (cam.ready || 0) - 0.34); cam.steady = 0; }
@@ -5594,10 +5940,11 @@ function camTrack(det) {
 }
 function setCamStatus() {
   if (!cam || !cam.stream) return;
-  const recent = performance.now() - cam.lastAt < 1500;
+  const recent = cam.lastAt > 0 && performance.now() - cam.lastAt < 1500;
   let t;
   if (cam.retakeId && cam.shots) t = 'Got it.';
   else if (recent || (cam.auto && !cam.armed && cam.quad)) t = 'Got it. Put the next page down, or tap Done.';
+  else if (!cam.quad && cam.lightDesk && cam.lostAt && performance.now() - cam.lostAt > 3000) t = 'Can’t see the page’s edges. A darker surface helps.';
   else if (!cam.quad) t = cam.auto ? 'Point the camera at a page.' : 'Point the camera at a page, then tap the round button.';
   else t = cam.auto ? 'Hold still…' : 'Tap the round button to take the photo.';
   if (cam.status.textContent !== t) cam.status.textContent = t;
@@ -5663,21 +6010,27 @@ async function captureFrame() {
   c0.flash.classList.add('go');
   setCamStatus();
   let still = null;
-  if (c0.photo && c0.photo.w * c0.photo.h > vw * vh) {
+  // A full still photo when the camera offers one at least as big as the video picture.
+  if (c0.photo && !c0.noPhoto && c0.photo.w * c0.photo.h >= vw * vh) {
     try {
-      const blob = await c0.photo.ic.takePhoto({ imageWidth: c0.photo.w, imageHeight: c0.photo.h });
+      const settings = { imageWidth: c0.photo.w, imageHeight: c0.photo.h }, fl = photoFlash(c0);
+      if (fl) settings.fillLightMode = fl;
+      const blob = await Promise.race([c0.photo.ic.takePhoto(settings), new Promise((res, rej) => setTimeout(() => rej(new Error('The photo took too long.')), 5000))]);
       still = await createImageBitmap(blob);
-    } catch (e) { still = null; }
+      // A still turned on its side compared with the camera view would scan sideways: use the camera's picture instead.
+      if (vw !== vh && Math.abs(still.width / still.height - vh / vw) < 0.02) { if (still.close) still.close(); still = null; c0.noPhoto = true; }
+    } catch (e) { still = null; c0.noPhoto = true; }
   }
-  // Otherwise take three frames a moment apart and keep the sharpest, so a small shake doesn't blur the page.
+  c0.lastSource = still ? 'photo' : 'frames';
+  // Otherwise take five frames a moment apart and keep the sharpest, so a small shake doesn't blur the page.
   const frame = still ? scanCanvas(still.width, still.height) : scanCanvas(vw, vh);
   if (still) {
     frame.getContext('2d').drawImage(still, 0, 0);
     if (still.close) still.close();
   }
   let best = -1, sharpness = [];
-  for (let i = 0; i < (still ? 0 : 3); i++) {
-    if (i) await new Promise(r => setTimeout(r, 70));
+  for (let i = 0; i < (still ? 0 : 5); i++) {
+    if (i) await new Promise(r => setTimeout(r, 60));
     if (!c0.stream || v.videoWidth !== vw) break;
     const sh = frameSharpness(v, hint);
     sharpness.push(Math.round(sh));

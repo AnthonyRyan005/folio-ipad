@@ -1,7 +1,7 @@
 // Folio keeps a copy of itself on the device so it opens without the internet.
 // The build changes VERSION whenever the app changes, so devices pick up new versions.
 // The text reader lives in its own cache, so app updates don't download it again.
-const VERSION = 'folio-6935e77b04d8';
+const VERSION = 'folio-b3119b988f4c';
 const OCR = 'folio-ocr-4549540fa4ee';
 const FILES = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png"];
 const OCR_FILES = ["ocr/tesseract.min.js", "ocr/worker.min.js", "ocr/tesseract-core-simd-lstm.wasm.js", "ocr/eng.traineddata.gz"];
